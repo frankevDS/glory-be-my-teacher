@@ -35,6 +35,27 @@ installable, offline-capable web app (PWA), powered by Groq for the AI teacher.
 - **Word & letter puzzles** — a "🧩 Puzzles" button generates 6 topic vocabulary words
   (tap-the-letters spelling game, with a clue) and 4 topic sentences (tap-the-words
   sentence builder), both scored with instant Correct/Wrong feedback.
+- **Student profiles (optional)** — if Supabase is set up, the home page shows a "Who's
+  studying?" picker instead of a plain name box, so siblings/classmates sharing one
+  deployed link each get their own tracked history. Falls back to a plain name field if
+  Supabase isn't set up.
+- **Parent/teacher dashboard (optional)** — `/dashboard`: pick a student, see lessons
+  studied, quizzes taken, average score, a score-over-time chart, weak topics (last
+  score under 70%), and a recent-activity table.
+- **Spaced repetition (optional)** — `/review`: any quiz question a student got wrong is
+  automatically queued and resurfaces a day later, then further out each time it's
+  answered correctly on review (1 → 3 → 7 → 16 → 35 days), until it's "mastered" and
+  drops out of the queue. Get it wrong again on review and it resets to day 1.
+- **Browsable topic list** — step 5 on the home page is now a tappable list of real
+  topics for the chosen subject (pulled straight from an ingested syllabus PDF when
+  you've run the ingest step, clearly marked ✔), or a sensible AI-suggested list
+  otherwise (marked ⚠, worth double-checking). A separate search box below it (step 6)
+  is for typing a specific topic freely, so browsing and searching are two distinct,
+  clearly-labeled things instead of one text box doing both jobs.
+- **Admin-approved accounts (optional, OFF by default)** — real email+password sign-in,
+  with an admin approval gate before someone can use lessons/quizzes/puzzles (they can
+  still browse subjects while pending). This is the foundation for a future paid
+  subscription: real accounts you control, not just an open link.
 
 ## What's honestly NOT built yet (see "Roadmap" below)
 
@@ -44,7 +65,9 @@ installable, offline-capable web app (PWA), powered by Groq for the AI teacher.
   search — good enough for a first version, not as smart as it could get.
 - Word/sentence puzzles cover vocabulary and simple factual sentences well; they don't
   yet adapt difficulty based on how the student is doing.
-- A parent/teacher dashboard.
+- Student profiles have no password/login — anyone with the link can pick any name from
+  the list or add a new one. Fine for a family or small classroom; not meant for a
+  public-facing deployment without adding real authentication first.
 - The leaderboard has deliberately loose anti-cheat: anyone with your Supabase anon key
   (which is public, by design, in any Supabase project) can submit a score. Fine for a
   family or small school; if this grows into something public-facing, move score
@@ -139,8 +162,53 @@ on the model's general knowledge — that's what turns "probably right" into "ve
 5. Redeploy (or restart `next dev`). The "Submit my score" button and leaderboard now
    appear automatically after every quiz — no code changes needed.
 
+**Also run `supabase/schema_v2_history.sql`** the same way (SQL Editor → paste → Run) to
+add student profiles, the dashboard, and spaced repetition — they all reuse this same
+Supabase project, no second account needed.
+
 If you skip this section entirely, the app still works fine; the leaderboard section
 just doesn't render.
+
+## Admin approval / gated access (optional, OFF by default)
+
+This turns the app from "open to anyone with the link" into "sign up, then wait for an
+admin to approve you" — the natural first step before a paid subscription. It's fully
+opt-in and doesn't touch anything else if you don't turn it on.
+
+1. In Supabase's SQL Editor, run `supabase/schema_v3_auth.sql` (after the two schema
+   files above).
+2. Go to Project Settings → API. Copy the **`service_role`** secret key (different from
+   the `anon` key you already copied — this one is powerful, never share it or put it in
+   client-side code).
+3. In Vercel → your project → Environment Variables, add:
+   ```
+   SUPABASE_SERVICE_ROLE_KEY=your_service_role_secret
+   NEXT_PUBLIC_REQUIRE_APPROVAL=true
+   ```
+4. Redeploy.
+5. Visit your site and sign up once, using your own real email — this is how you'll
+   become the admin.
+6. In Supabase's SQL Editor, run (with your actual email):
+   ```sql
+   update public.profiles set role = 'admin', status = 'approved'
+   where email = 'you@example.com';
+   ```
+7. Sign in again (or refresh) and visit `/admin` — you can now approve, reject, or
+   promote any account that signs up.
+
+**What "pending" users can and can't do:** they can sign up, sign in, and browse the
+country/level/subject/topic picker freely. The moment they try to start a lesson, take a
+quiz, or do a puzzle, the AI politely tells them their account is awaiting approval —
+this is enforced on the server (not just hidden in the interface), so it can't be
+bypassed by a technically savvy user poking at the API directly.
+
+**Turning it back off:** set `NEXT_PUBLIC_REQUIRE_APPROVAL` back to `false` (or delete
+it) and redeploy — the app goes back to fully open access instantly.
+
+**What this is NOT yet:** actual payment collection. This gate controls *access*, not
+*billing*. Adding real subscriptions (Stripe or similar) to automatically approve paying
+customers is a separate, sizeable next step — happy to scope that whenever you're ready
+to pick a payment provider and pricing.
 
 ## Roadmap (in priority order)
 
@@ -157,9 +225,10 @@ just doesn't render.
 5. ~~Competitions~~ — done in v1 via Supabase (see above). Next refinement: filter the
    leaderboard by school/region if you want smaller, more meaningful competition groups
    instead of one global list per subject+topic.
-6. **Parent/teacher dashboard:** track topics covered, quiz scores over time, weak areas.
-7. **Spaced repetition:** resurface previously-missed questions a few days later instead
-   of only scoring once.
+6. ~~Parent/teacher dashboard~~ — done in v1 (see `/dashboard`).
+7. ~~Spaced repetition~~ — done in v1 (see `/review`). Next refinement: a gentle
+   in-app reminder/notification when questions become due, instead of relying on
+   remembering to check the page.
 
 ## Project structure
 
@@ -178,13 +247,27 @@ scripts/
 syllabus-index/
   *.json              – generated by the ingest script, safe to commit (your own excerpts)
 supabase/
-  schema.sql          – run once in Supabase's SQL editor to create the leaderboard table
+  schema.sql             – run first: leaderboard table
+  schema_v2_history.sql  – run second: students, study history, spaced-repetition queue
+  schema_v3_auth.sql     – run third (optional): real accounts + admin approval
 components/
   VisualBlock.jsx     – renders charts/tables/shapes from the AI's structured output
   SpeakButton.jsx     – 🔊 read-aloud using the browser's free speech engine
   DictionaryPanel.jsx – free dictionary lookup with pronunciation
   Leaderboard.jsx     – submit/view quiz scores (needs Supabase; hides itself otherwise)
   PuzzleGame.jsx      – letter-tile spelling game + tap-the-words sentence builder
+  Footer.jsx          – designer/company credit shown on the landing page
+  StudentPicker.jsx   – "who's studying?" profile picker (needs Supabase)
+  AuthGate.jsx        – sign in/up UI shown when NEXT_PUBLIC_REQUIRE_APPROVAL is on
+app/dashboard/page.js – parent/teacher progress dashboard (needs Supabase)
+app/review/page.js   – spaced-repetition review session (needs Supabase)
+app/admin/page.js    – approve/reject/promote users (needs Supabase + admin role)
+app/api/topics/route.js – powers the browsable topic list (syllabus-first, AI fallback)
+lib/
+  spacedRepetition.js – the 1/3/7/16/35-day review interval scheduler
+  studentClient.js    – remembers which student profile this device is using
+  authClient.js       – browser-side sign up/in/out helpers
+  supabaseServer.js   – SERVER-ONLY: verifies who's calling the API + admin checks
 public/
   manifest.json, sw.js, icons/ – PWA install + offline shell
 ```
