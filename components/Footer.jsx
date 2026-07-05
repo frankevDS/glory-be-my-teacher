@@ -1,0 +1,30 @@
+export default function Footer() {
+  return (
+    <footer className="app-footer">
+      <div className="footer-divider" />
+      <p className="footer-tagline">Crafted with ✎ by</p>
+      <p className="footer-name">Aderemi Francis</p>
+      <p className="footer-company">Frankev Digital Services · Frankev Global Ltd</p>
+
+      <div className="footer-row">
+        <a href="tel:+233245881054">+233 24 588 1054</a>
+        <span className="footer-dot">·</span>
+        <a href="tel:+233547141279">+233 54 714 1279</a>
+      </div>
+
+      <div className="footer-row">
+        <a href="mailto:frankevgloballtd@gmail.com">frankevgloballtd@gmail.com</a>
+      </div>
+
+      <div className="footer-row">
+        <a href="https://frankev.com" target="_blank" rel="noopener noreferrer">
+          frankev.com
+        </a>
+        <span className="footer-dot">·</span>
+        <a href="https://frankevdigitalservices.com" target="_blank" rel="noopener noreferrer">
+          frankevdigitalservices.com
+        </a>
+      </div>
+    </footer>
+  );
+}
