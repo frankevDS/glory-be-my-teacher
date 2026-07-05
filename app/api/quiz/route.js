@@ -1,5 +1,6 @@
 import { buildQuizPrompt } from "../../../lib/prompt";
 import { retrieveSyllabusExcerpt } from "../../../lib/retrieval";
+import { getCallerProfile } from "../../../lib/supabaseServer";
 
 // Node runtime (not edge) so we can read the locally-ingested syllabus index files.
 export const runtime = "nodejs";
@@ -11,6 +12,19 @@ export async function POST(req) {
       { error: "Server is missing GROQ_API_KEY. Add it in Vercel env vars and redeploy." },
       { status: 500 }
     );
+  }
+
+  if (process.env.NEXT_PUBLIC_REQUIRE_APPROVAL === "true") {
+    const caller = await getCallerProfile(req);
+    if (!caller) {
+      return Response.json({ error: "Please sign in first to use quizzes." }, { status: 401 });
+    }
+    if (caller.status !== "approved") {
+      return Response.json(
+        { error: "Your account is awaiting admin approval before quizzes unlock." },
+        { status: 403 }
+      );
+    }
   }
 
   const body = await req.json();

@@ -584,3 +584,127 @@ input:focus-visible {
   border-color: var(--chalk-yellow);
   color: var(--chalkboard-dark);
 }
+
+/* ---- Footer credit ---- */
+
+.app-footer {
+  margin-top: 56px;
+  padding-top: 24px;
+  text-align: center;
+}
+
+.footer-divider {
+  border-top: 2px dashed rgba(251, 247, 236, 0.2);
+  margin-bottom: 20px;
+}
+
+.footer-tagline {
+  font-family: var(--font-chalk);
+  color: var(--chalk-yellow);
+  font-size: 1.05rem;
+  margin: 0 0 2px;
+  transform: rotate(-1deg);
+}
+
+.footer-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--paper);
+  margin: 0 0 2px;
+}
+
+.footer-company {
+  color: rgba(251, 247, 236, 0.65);
+  font-size: 0.85rem;
+  margin: 0 0 14px;
+}
+
+.footer-row {
+  font-size: 0.85rem;
+  margin-bottom: 6px;
+}
+
+.footer-row a {
+  color: rgba(251, 247, 236, 0.85);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(251, 247, 236, 0.35);
+}
+
+.footer-row a:hover {
+  color: var(--chalk-yellow);
+  border-color: var(--chalk-yellow);
+}
+
+.footer-dot {
+  margin: 0 8px;
+  color: rgba(251, 247, 236, 0.4);
+}
+
+.top-links {
+  margin-top: 14px;
+  font-size: 0.9rem;
+}
+
+.top-links a {
+  color: var(--chalk-yellow);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(242, 193, 78, 0.4);
+}
+
+.top-links a:hover {
+  border-color: var(--chalk-yellow);
+}
+
+/* ---- Dashboard ---- */
+
+.dashboard-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin: 20px 0 28px;
+}
+
+.stat-card {
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 16px;
+  text-align: center;
+}
+
+.stat-number {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.6rem;
+  color: var(--chalkboard);
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* ---- Auth gate ---- */
+
+.auth-gate {
+  margin-bottom: 24px;
+}
+
+.auth-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.auth-form input {
+  flex: 1;
+  min-width: 160px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: none;
+  font-family: var(--font-body);
+  font-size: 1rem;
+}

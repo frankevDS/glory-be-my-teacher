@@ -1,5 +1,6 @@
 import { buildSystemPrompt } from "../../../lib/prompt";
 import { retrieveSyllabusExcerpt } from "../../../lib/retrieval";
+import { getCallerProfile } from "../../../lib/supabaseServer";
 
 // Node runtime (not edge) so we can read the locally-ingested syllabus index files.
 export const runtime = "nodejs";
@@ -11,6 +12,19 @@ export async function POST(req) {
       "Server is missing GROQ_API_KEY. Add it in your Vercel project's Environment Variables, then redeploy.",
       { status: 500 }
     );
+  }
+
+  if (process.env.NEXT_PUBLIC_REQUIRE_APPROVAL === "true") {
+    const caller = await getCallerProfile(req);
+    if (!caller) {
+      return new Response("Please sign in first to use the AI teacher.", { status: 401 });
+    }
+    if (caller.status !== "approved") {
+      return new Response(
+        "Your account is awaiting admin approval before lessons unlock. You can keep browsing subjects while you wait.",
+        { status: 403 }
+      );
+    }
   }
 
   const body = await req.json();

@@ -7,12 +7,14 @@ import SpeakButton from "../../components/SpeakButton";
 import DictionaryPanel from "../../components/DictionaryPanel";
 import Leaderboard from "../../components/Leaderboard";
 import PuzzleGame from "../../components/PuzzleGame";
+import { supabase, dbEnabled } from "../../lib/supabaseClient";
 
 function LearnInner() {
   const params = useSearchParams();
   const router = useRouter();
 
   const name = params.get("name") || "Student";
+  const studentId = params.get("studentId") || null;
   const country = params.get("country") || "ghana";
   const level = params.get("level") || "";
   const track = params.get("track") || "";
@@ -22,7 +24,7 @@ function LearnInner() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
-  const [mode, setMode] = useState("chat"); // "chat" | "quiz"
+  const [mode, setMode] = useState("chat"); // "chat" | "quiz" | "puzzle"
   const [quiz, setQuiz] = useState(null);
   const [quizIndex, setQuizIndex] = useState(0);
   const [score, setScore] = useState(0);
@@ -31,11 +33,24 @@ function LearnInner() {
   const [showDictionary, setShowDictionary] = useState(false);
   const [puzzleData, setPuzzleData] = useState(null);
   const [puzzleLoading, setPuzzleLoading] = useState(false);
+  const [wrongAnswers, setWrongAnswers] = useState([]);
+  const [quizLogged, setQuizLogged] = useState(false);
   const chatEndRef = useRef(null);
 
   useEffect(() => {
     // Kick off the first lesson automatically.
     sendToTutor(`Please teach me about "${topic}" in ${subject}.`, true);
+    if (dbEnabled && studentId) {
+      supabase.from("study_history").insert({
+        student_id: studentId,
+        country,
+        level,
+        track: track || null,
+        subject,
+        topic,
+        activity_type: "lesson",
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -53,7 +68,7 @@ function LearnInner() {
 
     const res = await fetch("/api/tutor", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await authHeader()) },
       body: JSON.stringify({
         studentName: name,
         country,
@@ -94,9 +109,11 @@ function LearnInner() {
     setScore(0);
     setQuizIndex(0);
     setSelectedOption(null);
+    setWrongAnswers([]);
+    setQuizLogged(false);
     const res = await fetch("/api/quiz", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await authHeader()) },
       body: JSON.stringify({ country, level, track, subject, topic, difficulty }),
     });
     const data = await res.json();
@@ -114,7 +131,7 @@ function LearnInner() {
     setMode("puzzle");
     const res = await fetch("/api/puzzle", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await authHeader()) },
       body: JSON.stringify({ country, level, track, subject, topic }),
     });
     const data = await res.json();
@@ -130,8 +147,11 @@ function LearnInner() {
   function answer(idx) {
     if (selectedOption !== null) return;
     setSelectedOption(idx);
-    if (idx === quiz[quizIndex].correctIndex) {
+    const q = quiz[quizIndex];
+    if (idx === q.correctIndex) {
       setScore((s) => s + 1);
+    } else {
+      setWrongAnswers((w) => [...w, q]);
     }
   }
 
@@ -141,6 +161,44 @@ function LearnInner() {
   }
 
   const quizDone = quiz && quizIndex >= quiz.length;
+
+  async function authHeader() {
+    if (!supabase) return {};
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }
+
+  useEffect(() => {
+    if (!quizDone || quizLogged || !dbEnabled || !studentId) return;
+    setQuizLogged(true);
+    supabase.from("study_history").insert({
+      student_id: studentId,
+      country,
+      level,
+      track: track || null,
+      subject,
+      topic,
+      activity_type: "quiz",
+      score,
+      total: quiz.length,
+    });
+    if (wrongAnswers.length > 0) {
+      supabase.from("quiz_mistakes").insert(
+        wrongAnswers.map((q) => ({
+          student_id: studentId,
+          country,
+          subject,
+          topic,
+          question: q.question,
+          options: q.options,
+          correct_index: q.correctIndex,
+          explanation: q.explanation,
+        }))
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quizDone]);
 
   return (
     <main className="wrap">
