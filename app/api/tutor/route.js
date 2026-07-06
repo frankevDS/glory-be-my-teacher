@@ -1,6 +1,6 @@
 import { buildSystemPrompt } from "../../../lib/prompt";
 import { retrieveSyllabusExcerpt } from "../../../lib/retrieval";
-import { getCallerProfile } from "../../../lib/supabaseServer";
+import { getCallerProfile, isApproved } from "../../../lib/supabaseServer";
 
 // Node runtime (not edge) so we can read the locally-ingested syllabus index files.
 export const runtime = "nodejs";
@@ -19,9 +19,9 @@ export async function POST(req) {
     if (!caller) {
       return new Response("Please sign in first to use the AI teacher.", { status: 401 });
     }
-    if (caller.status !== "approved") {
+    if (!isApproved(caller)) {
       return new Response(
-        "Your account is awaiting admin approval before lessons unlock. You can keep browsing subjects while you wait.",
+        "Your account is not currently approved (either still pending, or your access period has ended). You can keep browsing subjects while you wait — ask your admin to check your status.",
         { status: 403 }
       );
     }

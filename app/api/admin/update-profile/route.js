@@ -8,7 +8,7 @@ export async function POST(req) {
     return Response.json({ error: "Not authorized." }, { status: 403 });
   }
 
-  const { targetUserId, status, role } = await req.json();
+  const { targetUserId, status, role, expiresAt, clearExpiry } = await req.json();
   if (!targetUserId) {
     return Response.json({ error: "Missing targetUserId." }, { status: 400 });
   }
@@ -33,6 +33,8 @@ export async function POST(req) {
   const updates = {};
   if (status) updates.status = status;
   if (role) updates.role = role;
+  if (expiresAt) updates.expires_at = expiresAt;
+  if (clearExpiry) updates.expires_at = null;
   if (Object.keys(updates).length === 0) {
     return Response.json({ error: "Nothing to update." }, { status: 400 });
   }

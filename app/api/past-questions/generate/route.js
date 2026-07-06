@@ -1,6 +1,6 @@
 import { buildExamStylePrompt } from "../../../../lib/prompt";
 import { retrieveSyllabusExcerpt } from "../../../../lib/retrieval";
-import { getCallerProfile } from "../../../../lib/supabaseServer";
+import { getCallerProfile, isApproved } from "../../../../lib/supabaseServer";
 
 export const runtime = "nodejs";
 
@@ -18,9 +18,9 @@ export async function POST(req) {
     if (!caller) {
       return Response.json({ error: "Please sign in first to generate practice questions." }, { status: 401 });
     }
-    if (caller.status !== "approved") {
+    if (!isApproved(caller)) {
       return Response.json(
-        { error: "Your account is awaiting admin approval before this unlocks." },
+        { error: "Your account is not currently approved (either still pending, or your access period has ended). Ask your admin to check your status." },
         { status: 403 }
       );
     }

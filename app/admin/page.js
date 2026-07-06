@@ -5,12 +5,35 @@ import { supabase } from "../../lib/supabaseClient";
 import { getAccessToken } from "../../lib/authClient";
 import Footer from "../../components/Footer";
 
+const DURATIONS = [
+  { label: "No expiry", months: 0 },
+  { label: "1 month", months: 1 },
+  { label: "3 months", months: 3 },
+  { label: "6 months", months: 6 },
+  { label: "12 months", months: 12 },
+];
+
+function monthsFromNow(months) {
+  const d = new Date();
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString();
+}
+
+function formatExpiry(expiresAt) {
+  if (!expiresAt) return "Never";
+  const date = new Date(expiresAt);
+  const isPast = date < new Date();
+  const formatted = date.toLocaleDateString();
+  return isPast ? `Expired ${formatted}` : formatted;
+}
+
 export default function AdminPage() {
   const [session, setSession] = useState(undefined);
   const [profile, setProfile] = useState(null);
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [durations, setDurations] = useState({}); // profileId -> months selected
 
   useEffect(() => {
     init();
@@ -60,6 +83,23 @@ export default function AdminPage() {
     loadProfiles();
   }
 
+  function approve(p) {
+    const months = durations[p.id] ?? 0;
+    const updates = { status: "approved" };
+    if (months > 0) updates.expiresAt = monthsFromNow(months);
+    else updates.clearExpiry = true;
+    updateProfile(p.id, updates);
+  }
+
+  function extend(p) {
+    const months = durations[p.id] ?? 0;
+    if (months === 0) {
+      updateProfile(p.id, { clearExpiry: true });
+    } else {
+      updateProfile(p.id, { expiresAt: monthsFromNow(months) });
+    }
+  }
+
   if (loading) {
     return (
       <main className="wrap">
@@ -104,19 +144,24 @@ export default function AdminPage() {
       <section className="hero">
         <span className="chalk-tag">Admin ✎</span>
         <h1>Approve Users</h1>
-        <p>Approve, reject, or promote accounts requesting access.</p>
+        <p>
+          Approve, reject, or promote accounts requesting access. Pick how long an
+          approval should last before approving — leave "No expiry" for unlimited access.
+        </p>
       </section>
 
       {error && <p className="dictionary-error">{error}</p>}
 
-      <div className="visual-block" style={{ maxWidth: 760, margin: "0 auto", overflowX: "auto" }}>
+      <div className="visual-block" style={{ maxWidth: 900, margin: "0 auto", overflowX: "auto" }}>
         <table className="data-table">
           <thead>
             <tr>
               <th>Name</th>
               <th>Email</th>
               <th>Status</th>
+              <th>Expires</th>
               <th>Role</th>
+              <th>Duration</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -128,15 +173,36 @@ export default function AdminPage() {
                 </td>
                 <td>{p.email}</td>
                 <td>{p.status}</td>
+                <td>{formatExpiry(p.expires_at)}</td>
                 <td>{p.role}</td>
+                <td>
+                  {!p.isSuperAdmin && (
+                    <select
+                      value={durations[p.id] ?? 0}
+                      onChange={(e) => setDurations((d) => ({ ...d, [p.id]: Number(e.target.value) }))}
+                      style={{ padding: "6px 8px", borderRadius: 6, border: "1px solid var(--paper-line)" }}
+                    >
+                      {DURATIONS.map((d) => (
+                        <option key={d.months} value={d.months}>
+                          {d.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </td>
                 <td style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {p.isSuperAdmin ? (
                     <span style={{ color: "var(--muted)", fontSize: "0.85rem" }}>Protected account</span>
                   ) : (
                     <>
                       {p.status !== "approved" && (
-                        <button className="chip" onClick={() => updateProfile(p.id, { status: "approved" })}>
+                        <button className="chip" onClick={() => approve(p)}>
                           Approve
+                        </button>
+                      )}
+                      {p.status === "approved" && (
+                        <button className="chip" onClick={() => extend(p)}>
+                          Update expiry
                         </button>
                       )}
                       {p.status !== "rejected" && (
