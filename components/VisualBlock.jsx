@@ -183,12 +183,20 @@ function wrapLabel(label, maxChars = 14) {
   return line2 ? [line1, line2] : [line1];
 }
 
+function edgePoint(cx, cy, dx, dy, halfW, halfH) {
+  if (dx === 0 && dy === 0) return { x: cx, y: cy };
+  const tx = dx !== 0 ? halfW / Math.abs(dx) : Infinity;
+  const ty = dy !== 0 ? halfH / Math.abs(dy) : Infinity;
+  const t = Math.min(tx, ty);
+  return { x: cx + dx * t, y: cy + dy * t };
+}
+
 function DiagramSVG({ nodes, edges }) {
   if (!nodes || nodes.length === 0) return null;
-  const boxW = 130;
-  const boxH = 56;
-  const gapX = 46;
-  const gapY = 64;
+  const boxW = 140;
+  const boxH = 60;
+  const gapX = 50;
+  const gapY = 68;
   const perRow = Math.min(nodes.length, 4) || 1;
 
   const positions = {};
@@ -206,10 +214,10 @@ function DiagramSVG({ nodes, edges }) {
   const height = rows * (boxH + gapY) - gapY + 20;
 
   const stroke = "#1F3A2E";
-  const fill = "#F2C14E33";
+  const fill = "#F2C14E4D";
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} width="100%" style={{ maxWidth: 560, height: "auto" }}>
+    <svg viewBox={`0 0 ${width} ${height}`} width="100%" style={{ maxWidth: 580, height: "auto" }}>
       <defs>
         <marker id="diagram-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" fill={stroke} />
@@ -219,21 +227,27 @@ function DiagramSVG({ nodes, edges }) {
         const from = positions[e.from];
         const to = positions[e.to];
         if (!from || !to) return null;
-        const midX = (from.x + to.x) / 2;
-        const midY = (from.y + to.y) / 2;
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        // Stop the line at each box's edge, not its center, so it never
+        // crosses through the box or the label text inside it.
+        const start = edgePoint(from.x, from.y, dx, dy, boxW / 2, boxH / 2);
+        const end = edgePoint(to.x, to.y, -dx, -dy, boxW / 2, boxH / 2);
+        const midX = (start.x + end.x) / 2;
+        const midY = (start.y + end.y) / 2;
         return (
           <g key={i}>
             <line
-              x1={from.x}
-              y1={from.y}
-              x2={to.x}
-              y2={to.y}
+              x1={start.x}
+              y1={start.y}
+              x2={end.x}
+              y2={end.y}
               stroke={stroke}
-              strokeWidth="2"
+              strokeWidth="2.5"
               markerEnd="url(#diagram-arrow)"
             />
             {e.label && (
-              <text x={midX} y={midY - 6} fontSize="11" textAnchor="middle" fill={stroke}>
+              <text x={midX} y={midY - 8} fontSize="12" fontWeight="700" textAnchor="middle" fill={stroke}>
                 {e.label}
               </text>
             )}
@@ -253,14 +267,15 @@ function DiagramSVG({ nodes, edges }) {
               rx="10"
               fill={fill}
               stroke={stroke}
-              strokeWidth="2"
+              strokeWidth="2.5"
             />
             {lines.map((line, li) => (
               <text
                 key={li}
                 x={pos.x}
-                y={pos.y + (li - (lines.length - 1) / 2) * 15 + 4}
-                fontSize="13"
+                y={pos.y + (li - (lines.length - 1) / 2) * 18 + 5}
+                fontSize="15"
+                fontWeight="700"
                 textAnchor="middle"
                 fill={stroke}
               >

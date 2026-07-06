@@ -7,7 +7,9 @@ export default function Footer() {
       <p className="footer-company">Frankev Digital Services · Frankev Global Ltd</p>
 
       <div className="footer-row">
-        <a href="tel:+233245881054">+233 24 588 1054</a>
+        <a href="https://wa.me/233245881054" target="_blank" rel="noopener noreferrer">
+          +233 24 588 1054 (WhatsApp)
+        </a>
         <span className="footer-dot">·</span>
         <a href="tel:+233547141279">+233 54 714 1279</a>
       </div>

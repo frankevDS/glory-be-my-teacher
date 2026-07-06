@@ -120,7 +120,7 @@ export default function AuthGate({ onReady }) {
         {error && <p className="dictionary-error">{error}</p>}
         {info && <p className="leaderboard-note">{info}</p>}
         <button
-          className="chip"
+          className="chip chip-inverse"
           onClick={() => {
             setMode(mode === "signin" ? "signup" : "signin");
             setError("");
@@ -138,7 +138,7 @@ export default function AuthGate({ onReady }) {
       <p style={{ color: "rgba(251,247,236,0.85)" }}>
         Signed in as <strong>{profile?.name || session.user.email}</strong> — status:{" "}
         <strong>{profile?.status || "loading…"}</strong>{" "}
-        <button className="chip" onClick={handleSignOut}>
+        <button className="chip chip-inverse" onClick={handleSignOut}>
           Sign out
         </button>
       </p>
