@@ -123,25 +123,33 @@ export default function AdminPage() {
           <tbody>
             {profiles.map((p) => (
               <tr key={p.id}>
-                <td>{p.name}</td>
+                <td>
+                  {p.name} {p.isSuperAdmin && <span title="Protected super admin">🛡️</span>}
+                </td>
                 <td>{p.email}</td>
                 <td>{p.status}</td>
                 <td>{p.role}</td>
                 <td style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {p.status !== "approved" && (
-                    <button className="chip" onClick={() => updateProfile(p.id, { status: "approved" })}>
-                      Approve
-                    </button>
-                  )}
-                  {p.status !== "rejected" && (
-                    <button className="chip" onClick={() => updateProfile(p.id, { status: "rejected" })}>
-                      Reject
-                    </button>
-                  )}
-                  {p.role !== "admin" && (
-                    <button className="chip" onClick={() => updateProfile(p.id, { role: "admin" })}>
-                      Make Admin
-                    </button>
+                  {p.isSuperAdmin ? (
+                    <span style={{ color: "var(--muted)", fontSize: "0.85rem" }}>Protected account</span>
+                  ) : (
+                    <>
+                      {p.status !== "approved" && (
+                        <button className="chip" onClick={() => updateProfile(p.id, { status: "approved" })}>
+                          Approve
+                        </button>
+                      )}
+                      {p.status !== "rejected" && (
+                        <button className="chip" onClick={() => updateProfile(p.id, { status: "rejected" })}>
+                          Reject
+                        </button>
+                      )}
+                      {p.role !== "admin" && (
+                        <button className="chip" onClick={() => updateProfile(p.id, { role: "admin" })}>
+                          Make Admin
+                        </button>
+                      )}
+                    </>
                   )}
                 </td>
               </tr>
