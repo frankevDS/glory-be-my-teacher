@@ -715,3 +715,94 @@ input:focus-visible {
   font-family: var(--font-body);
   font-size: 1rem;
 }
+
+.password-field {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 160px;
+}
+
+.password-field input {
+  width: 100%;
+  padding-right: 42px;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  padding: 4px 6px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+/* ---- Pricing page ---- */
+
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+  margin: 28px 0;
+}
+
+.pricing-card {
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 14px;
+  padding: 26px 20px;
+  text-align: center;
+  position: relative;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.25);
+}
+
+.pricing-card-highlight {
+  background: var(--chalk-yellow);
+  transform: scale(1.03);
+}
+
+.pricing-badge {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--chalkboard);
+  color: var(--paper);
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.pricing-plan-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.1rem;
+  margin-bottom: 6px;
+}
+
+.pricing-price {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 2rem;
+  margin-bottom: 4px;
+}
+
+.pricing-permonth {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+}
+
+.pricing-note {
+  font-family: var(--font-chalk);
+  font-size: 0.95rem;
+  color: var(--leaf);
+}
