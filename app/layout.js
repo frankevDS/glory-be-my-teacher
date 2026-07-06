@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Glory, Be My Teacher",
+  title: "Learn With Glory",
   description: "A senior high study companion for Ghana, Nigeria, UK, and USA students.",
   manifest: "/manifest.json",
 };

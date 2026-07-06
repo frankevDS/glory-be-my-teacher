@@ -89,25 +89,30 @@ export default function Home() {
     <main className="wrap">
       <section className="hero">
         <span className="chalk-tag">Welcome back to class ✎</span>
-        <h1>Glory, Be My Teacher</h1>
+        <h1>Learn With Glory</h1>
+        <p className="hero-subtitle">The app that began as "Glory, Be My Teacher" — a gift for one student, now for every student.</p>
         <p>
           A study companion for senior high school — Ghana, Nigeria, the UK, and the USA.
           Pick your country, your track, your subject, and tell your teacher what you want
           to learn today.
         </p>
-        {dbEnabled && (
-          <div className="top-links">
-            <a href="/review">🔁 Review due questions</a>
-            <span className="footer-dot">·</span>
-            <a href="/dashboard">📊 Parent / Teacher Dashboard</a>
-            {requireApproval && (
-              <>
-                <span className="footer-dot">·</span>
-                <a href="/admin">🔐 Admin</a>
-              </>
-            )}
-          </div>
-        )}
+        <div className="top-links">
+          <a href="/past-questions">📝 Past Questions</a>
+          {dbEnabled && (
+            <>
+              <span className="footer-dot">·</span>
+              <a href="/review">🔁 Review due questions</a>
+              <span className="footer-dot">·</span>
+              <a href="/dashboard">📊 Parent / Teacher Dashboard</a>
+              {requireApproval && (
+                <>
+                  <span className="footer-dot">·</span>
+                  <a href="/admin">🔐 Admin</a>
+                </>
+              )}
+            </>
+          )}
+        </div>
       </section>
 
       {requireApproval ? (

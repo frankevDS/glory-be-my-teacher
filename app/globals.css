@@ -78,6 +78,13 @@ input:focus-visible {
   transform: rotate(-2deg);
 }
 
+.hero-subtitle {
+  font-family: var(--font-chalk);
+  color: rgba(242, 193, 78, 0.75);
+  font-size: 0.95rem;
+  margin: 2px 0 12px;
+}
+
 .hero p {
   color: rgba(251, 247, 236, 0.75);
   max-width: 60ch;

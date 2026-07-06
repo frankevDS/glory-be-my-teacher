@@ -93,6 +93,46 @@ export default function VisualBlock({ data }) {
     );
   }
 
+  if (data.type === "diagram") {
+    return (
+      <div className="visual-block">
+        {data.title && <div className="visual-title">{data.title}</div>}
+        <DiagramSVG nodes={data.nodes || []} edges={data.edges || []} />
+      </div>
+    );
+  }
+
+  if (data.type === "function-graph") {
+    const chartData = {
+      datasets: [
+        {
+          label: data.title || "f(x)",
+          data: (data.points || []).map((p) => ({ x: p.x, y: p.y })),
+          borderColor: CHART_COLORS[0],
+          backgroundColor: CHART_COLORS[0] + "33",
+          tension: 0.3,
+          pointRadius: 3,
+        },
+      ],
+    };
+    const options = {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { type: "linear", title: { display: !!data.xLabel, text: data.xLabel || "" } },
+        y: { title: { display: !!data.yLabel, text: data.yLabel || "" } },
+      },
+    };
+    return (
+      <div className="visual-block">
+        {data.title && <div className="visual-title">{data.title}</div>}
+        <div style={{ maxWidth: 480 }}>
+          <Line data={chartData} options={options} />
+        </div>
+      </div>
+    );
+  }
+
   if (["bar", "line", "pie"].includes(data.type)) {
     const chartData = {
       labels: data.labels || [],
@@ -127,6 +167,111 @@ export default function VisualBlock({ data }) {
   }
 
   return null;
+}
+
+function wrapLabel(label, maxChars = 14) {
+  if (!label || label.length <= maxChars) return [label];
+  const words = label.split(" ");
+  if (words.length === 1) return [label];
+  let line1 = "";
+  let i = 0;
+  while (i < words.length && (line1 + words[i]).length <= maxChars) {
+    line1 += (line1 ? " " : "") + words[i];
+    i++;
+  }
+  const line2 = words.slice(i).join(" ");
+  return line2 ? [line1, line2] : [line1];
+}
+
+function DiagramSVG({ nodes, edges }) {
+  if (!nodes || nodes.length === 0) return null;
+  const boxW = 130;
+  const boxH = 56;
+  const gapX = 46;
+  const gapY = 64;
+  const perRow = Math.min(nodes.length, 4) || 1;
+
+  const positions = {};
+  nodes.forEach((n, i) => {
+    const row = Math.floor(i / perRow);
+    const col = i % perRow;
+    positions[n.id] = {
+      x: col * (boxW + gapX) + boxW / 2 + 10,
+      y: row * (boxH + gapY) + boxH / 2 + 10,
+    };
+  });
+
+  const rows = Math.ceil(nodes.length / perRow);
+  const width = perRow * (boxW + gapX) - gapX + 20;
+  const height = rows * (boxH + gapY) - gapY + 20;
+
+  const stroke = "#1F3A2E";
+  const fill = "#F2C14E33";
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} width="100%" style={{ maxWidth: 560, height: "auto" }}>
+      <defs>
+        <marker id="diagram-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill={stroke} />
+        </marker>
+      </defs>
+      {(edges || []).map((e, i) => {
+        const from = positions[e.from];
+        const to = positions[e.to];
+        if (!from || !to) return null;
+        const midX = (from.x + to.x) / 2;
+        const midY = (from.y + to.y) / 2;
+        return (
+          <g key={i}>
+            <line
+              x1={from.x}
+              y1={from.y}
+              x2={to.x}
+              y2={to.y}
+              stroke={stroke}
+              strokeWidth="2"
+              markerEnd="url(#diagram-arrow)"
+            />
+            {e.label && (
+              <text x={midX} y={midY - 6} fontSize="11" textAnchor="middle" fill={stroke}>
+                {e.label}
+              </text>
+            )}
+          </g>
+        );
+      })}
+      {nodes.map((n) => {
+        const pos = positions[n.id];
+        const lines = wrapLabel(n.label);
+        return (
+          <g key={n.id}>
+            <rect
+              x={pos.x - boxW / 2}
+              y={pos.y - boxH / 2}
+              width={boxW}
+              height={boxH}
+              rx="10"
+              fill={fill}
+              stroke={stroke}
+              strokeWidth="2"
+            />
+            {lines.map((line, li) => (
+              <text
+                key={li}
+                x={pos.x}
+                y={pos.y + (li - (lines.length - 1) / 2) * 15 + 4}
+                fontSize="13"
+                textAnchor="middle"
+                fill={stroke}
+              >
+                {line}
+              </text>
+            ))}
+          </g>
+        );
+      })}
+    </svg>
+  );
 }
 
 function ShapeSVG({ shape, labels }) {

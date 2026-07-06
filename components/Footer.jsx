@@ -15,16 +15,6 @@ export default function Footer() {
       <div className="footer-row">
         <a href="mailto:frankevgloballtd@gmail.com">frankevgloballtd@gmail.com</a>
       </div>
-
-      <div className="footer-row">
-        <a href="https://frankev.com" target="_blank" rel="noopener noreferrer">
-          frankev.com
-        </a>
-        <span className="footer-dot">·</span>
-        <a href="https://frankevdigitalservices.com" target="_blank" rel="noopener noreferrer">
-          frankevdigitalservices.com
-        </a>
-      </div>
     </footer>
   );
 }

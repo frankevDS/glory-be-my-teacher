@@ -17,6 +17,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { extractText } from "./lib/pdfExtractShared.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const [, , pdfPath, country, subject] = process.argv;
@@ -25,35 +26,6 @@ if (!pdfPath || !country || !subject) {
   console.error("Usage: npm run ingest -- <path-to-pdf> <country-key> <subject-slug>");
   console.error("Example: npm run ingest -- ./downloads/math.pdf ghana mathematics");
   process.exit(1);
-}
-
-async function extractText(filePath) {
-  const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  const data = new Uint8Array(fs.readFileSync(filePath));
-  const doc = await pdfjsLib.getDocument({ data, useSystemFonts: true }).promise;
-  let text = "";
-  for (let i = 1; i <= doc.numPages; i++) {
-    const page = await doc.getPage(i);
-    const content = await page.getTextContent();
-
-    // Group text items into lines using their vertical position (transform[5] = y),
-    // since pdf.js gives us positioned glyph runs, not paragraphs/lines directly.
-    const lines = new Map(); // roundedY -> [{x, str}]
-    for (const item of content.items) {
-      if (!item.str || !item.str.trim()) continue;
-      const y = Math.round(item.transform[5]);
-      const x = item.transform[4];
-      if (!lines.has(y)) lines.set(y, []);
-      lines.get(y).push({ x, str: item.str });
-    }
-    const orderedYs = [...lines.keys()].sort((a, b) => b - a); // top of page first
-    for (const y of orderedYs) {
-      const parts = lines.get(y).sort((a, b) => a.x - b.x);
-      text += parts.map((p) => p.str).join(" ") + "\n";
-    }
-    text += "\n";
-  }
-  return text;
 }
 
 async function main() {
