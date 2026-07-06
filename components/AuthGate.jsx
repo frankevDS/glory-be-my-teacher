@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { supabase, dbEnabled } from "../lib/supabaseClient";
 
 export default function AuthGate({ onReady }) {
   const [session, setSession] = useState(undefined); // undefined = loading, null = signed out
@@ -15,6 +15,10 @@ export default function AuthGate({ onReady }) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    if (!dbEnabled) {
+      onReady(null);
+      return;
+    }
     init();
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
@@ -67,6 +71,19 @@ export default function AuthGate({ onReady }) {
 
   async function handleSignOut() {
     await supabase.auth.signOut();
+  }
+
+  if (!dbEnabled) {
+    return (
+      <div className="auth-gate">
+        <p className="dictionary-error">
+          Admin approval is turned on, but the base Supabase connection isn't configured yet.
+          Add <code>NEXT_PUBLIC_SUPABASE_URL</code> and <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>{" "}
+          in Vercel's Environment Variables (the same ones used for the leaderboard/dashboard),
+          then redeploy.
+        </p>
+      </div>
+    );
   }
 
   if (session === undefined) {
