@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase, dbEnabled } from "../lib/supabaseClient";
+import { getPlanLabel } from "../lib/planStatus";
 
 export default function AuthGate({ onReady }) {
   const [session, setSession] = useState(undefined); // undefined = loading, null = signed out
@@ -9,6 +10,7 @@ export default function AuthGate({ onReady }) {
   const [mode, setMode] = useState("signin"); // "signin" | "signup"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
@@ -50,23 +52,48 @@ export default function AuthGate({ onReady }) {
     setError("");
     setInfo("");
     setBusy(true);
-    const { error: err } = await supabase.auth.signUp({ email, password, options: { data: { name } } });
-    setBusy(false);
-    if (err) {
-      setError(err.message);
-      return;
+    try {
+      const { data, error: err } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { name } },
+      });
+      setBusy(false);
+      if (err) {
+        setError(String(err.message || "Something went wrong. Please try again."));
+        return;
+      }
+      // Supabase quirk: signing up with an email that's already registered
+      // often returns NO error and NO new identity — it just silently does
+      // nothing, to avoid leaking which emails are registered. Catch that
+      // case explicitly so it doesn't look like a mystery freeze.
+      if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        setError("That email is already registered — try signing in instead, below.");
+        setMode("signin");
+        return;
+      }
+      setInfo("Account created! If email confirmation is on, check your inbox, then sign in below.");
+      setMode("signin");
+    } catch (e) {
+      setBusy(false);
+      console.error("Sign up failed:", e);
+      setError("Something went wrong signing up. Please check your connection and try again.");
     }
-    setInfo("Account created! If email confirmation is on, check your inbox, then sign in below.");
-    setMode("signin");
   }
 
   async function handleSignIn(e) {
     e.preventDefault();
     setError("");
     setBusy(true);
-    const { error: err } = await supabase.auth.signInWithPassword({ email, password });
-    setBusy(false);
-    if (err) setError(err.message);
+    try {
+      const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+      setBusy(false);
+      if (err) setError(String(err.message || "Something went wrong. Please try again."));
+    } catch (e) {
+      setBusy(false);
+      console.error("Sign in failed:", e);
+      setError("Something went wrong signing in. Please check your connection and try again.");
+    }
   }
 
   async function handleSignOut() {
@@ -105,14 +132,25 @@ export default function AuthGate({ onReady }) {
             onChange={(e) => setEmail(e.target.value)}
             required
           />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={6}
-          />
+          <div className="password-field">
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+            />
+            <button
+              type="button"
+              className="password-toggle"
+              onClick={() => setShowPassword((s) => !s)}
+              title={showPassword ? "Hide password" : "Show password"}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? "🙈" : "👁️"}
+            </button>
+          </div>
           <button className="primary-btn" type="submit" disabled={busy}>
             {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Sign up"}
           </button>
@@ -136,21 +174,20 @@ export default function AuthGate({ onReady }) {
   return (
     <div className="auth-gate">
       <p style={{ color: "rgba(251,247,236,0.85)" }}>
-        Signed in as <strong>{profile?.name || session.user.email}</strong> — status:{" "}
-        <strong>{profile?.status || "loading…"}</strong>{" "}
+        Signed in as <strong>{profile?.name || session.user.email}</strong>{" "}
         <button className="chip chip-inverse" onClick={handleSignOut}>
           Sign out
         </button>
       </p>
-      {profile?.status === "pending" && (
-        <p className="leaderboard-note" style={{ color: "var(--chalk-yellow)" }}>
-          Your account is awaiting admin approval. You can browse subjects below, but
-          lessons, quizzes, and puzzles unlock once you're approved.
-        </p>
-      )}
+      <p style={{ color: "var(--chalk-yellow)", fontFamily: "var(--font-chalk)", fontSize: "1.05rem" }}>
+        {getPlanLabel(profile)}
+      </p>
       {profile?.status === "rejected" && (
         <p className="dictionary-error">This account's access request wasn't approved.</p>
       )}
+      <a href="/pricing" style={{ color: "var(--paper)", textDecoration: "underline", fontSize: "0.9rem" }}>
+        💳 View Pricing / Upgrade
+      </a>
     </div>
   );
 }
