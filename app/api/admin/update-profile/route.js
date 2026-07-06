@@ -13,6 +13,23 @@ export async function POST(req) {
     return Response.json({ error: "Missing targetUserId." }, { status: 400 });
   }
 
+  const service = getServiceClient();
+
+  // Protect the designated super-admin account: it cannot be modified through
+  // this endpoint by anyone, full stop (including by itself — promoting or
+  // demoting it happens only via direct SQL, on purpose, so no admin,
+  // however trusted, can ever override that one account through the app).
+  const superAdminEmail = (process.env.SUPER_ADMIN_EMAIL || "").toLowerCase().trim();
+  if (superAdminEmail) {
+    const { data: target } = await service.from("profiles").select("email").eq("id", targetUserId).single();
+    if (target?.email && target.email.toLowerCase() === superAdminEmail) {
+      return Response.json(
+        { error: "This is the protected super-admin account and cannot be changed through the app." },
+        { status: 403 }
+      );
+    }
+  }
+
   const updates = {};
   if (status) updates.status = status;
   if (role) updates.role = role;
@@ -20,7 +37,6 @@ export async function POST(req) {
     return Response.json({ error: "Nothing to update." }, { status: 400 });
   }
 
-  const service = getServiceClient();
   const { error } = await service.from("profiles").update(updates).eq("id", targetUserId);
   if (error) return Response.json({ error: error.message }, { status: 500 });
 
