@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { getAccessToken } from "../../lib/authClient";
 import Footer from "../../components/Footer";
+import PricingManager from "../../components/PricingManager";
 
 const DURATIONS = [
   { label: "No expiry", months: 0 },
@@ -34,6 +35,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [durations, setDurations] = useState({}); // profileId -> months selected
+  const [tab, setTab] = useState("users"); // "users" | "pricing"
 
   useEffect(() => {
     init();
@@ -143,16 +145,29 @@ export default function AdminPage() {
 
       <section className="hero">
         <span className="chalk-tag">Admin ✎</span>
-        <h1>Approve Users</h1>
-        <p>
-          Approve, reject, or promote accounts requesting access. Pick how long an
-          approval should last before approving — leave "No expiry" for unlimited access.
-        </p>
+        <h1>Admin</h1>
+        <p>Approve accounts, or manage pricing plans — switch tabs below.</p>
       </section>
+
+      <div className="puzzle-tabs">
+        <button className={`chip ${tab === "users" ? "chip-active" : ""}`} onClick={() => setTab("users")}>
+          👤 Users
+        </button>
+        <button className={`chip ${tab === "pricing" ? "chip-active" : ""}`} onClick={() => setTab("pricing")}>
+          💳 Pricing
+        </button>
+      </div>
 
       {error && <p className="dictionary-error">{error}</p>}
 
-      <div className="visual-block" style={{ maxWidth: 900, margin: "0 auto", overflowX: "auto" }}>
+      {tab === "pricing" && <PricingManager />}
+
+      {tab === "users" && (
+        <>
+          <p style={{ color: "rgba(251,247,236,0.75)" }}>
+            Pick how long an approval should last before approving — leave "No expiry" for unlimited access.
+          </p>
+          <div className="visual-block" style={{ maxWidth: 900, margin: "0 auto", overflowX: "auto" }}>
         <table className="data-table">
           <thead>
             <tr>
@@ -223,7 +238,9 @@ export default function AdminPage() {
           </tbody>
         </table>
         {profiles.length === 0 && <p>No accounts yet.</p>}
-      </div>
+          </div>
+        </>
+      )}
 
       <Footer />
     </main>
