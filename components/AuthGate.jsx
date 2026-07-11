@@ -4,6 +4,31 @@ import { useEffect, useState } from "react";
 import { supabase, dbEnabled } from "../lib/supabaseClient";
 import { getPlanLabel } from "../lib/planStatus";
 
+// Turns ANY thrown/returned error into a readable string. This exists
+// specifically because native JS Error objects don't expose their .message
+// to JSON.stringify() (it's a non-enumerable property) — so a naive
+// stringify of a real error silently produces the literal text "{}" instead
+// of anything useful. This function can never do that.
+function describeError(err) {
+  if (!err) return "Something went wrong. Please try again.";
+  if (typeof err === "string" && err.trim()) return err;
+  if (err.message && typeof err.message === "string" && err.message.trim()) return err.message;
+  return "Something went wrong, and no further detail was given by the server. Please check your internet connection and try again.";
+}
+
+// Native Error objects don't expose message/stack to JSON.stringify (they're
+// non-enumerable) — this grabs them explicitly, so if something ever fails
+// in a confusing way again, the real reason is visible on-screen and can be
+// screenshotted directly, without anyone needing to open developer tools.
+function rawDebugString(err) {
+  try {
+    if (err instanceof Error) return JSON.stringify(err, Object.getOwnPropertyNames(err));
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
+}
+
 export default function AuthGate({ onReady }) {
   const [session, setSession] = useState(undefined); // undefined = loading, null = signed out
   const [profile, setProfile] = useState(null);
@@ -13,6 +38,7 @@ export default function AuthGate({ onReady }) {
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const [debugInfo, setDebugInfo] = useState("");
   const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -50,6 +76,7 @@ export default function AuthGate({ onReady }) {
   async function handleSignUp(e) {
     e.preventDefault();
     setError("");
+    setDebugInfo("");
     setInfo("");
     setBusy(true);
     try {
@@ -60,7 +87,8 @@ export default function AuthGate({ onReady }) {
       });
       setBusy(false);
       if (err) {
-        setError(String(err.message || "Something went wrong. Please try again."));
+        setError(describeError(err));
+        setDebugInfo(rawDebugString(err));
         return;
       }
       // Supabase quirk: signing up with an email that's already registered
@@ -77,22 +105,28 @@ export default function AuthGate({ onReady }) {
     } catch (e) {
       setBusy(false);
       console.error("Sign up failed:", e);
-      setError("Something went wrong signing up. Please check your connection and try again.");
+      setError(describeError(e));
+      setDebugInfo(rawDebugString(e));
     }
   }
 
   async function handleSignIn(e) {
     e.preventDefault();
     setError("");
+    setDebugInfo("");
     setBusy(true);
     try {
       const { error: err } = await supabase.auth.signInWithPassword({ email, password });
       setBusy(false);
-      if (err) setError(String(err.message || "Something went wrong. Please try again."));
+      if (err) {
+        setError(describeError(err));
+        setDebugInfo(rawDebugString(err));
+      }
     } catch (e) {
       setBusy(false);
       console.error("Sign in failed:", e);
-      setError("Something went wrong signing in. Please check your connection and try again.");
+      setError(describeError(e));
+      setDebugInfo(rawDebugString(e));
     }
   }
 
@@ -156,6 +190,11 @@ export default function AuthGate({ onReady }) {
           </button>
         </form>
         {error && <p className="dictionary-error">{error}</p>}
+        {debugInfo && (
+          <p style={{ fontSize: "0.72rem", color: "rgba(251,247,236,0.5)", wordBreak: "break-word" }}>
+            Technical detail (screenshot this if you need help): {debugInfo}
+          </p>
+        )}
         {info && <p className="leaderboard-note">{info}</p>}
         <button
           className="chip chip-inverse"
