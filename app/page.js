@@ -1,296 +1,258 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { COUNTRIES, listSubjectsFor } from "../lib/curriculum";
-import { dbEnabled } from "../lib/supabaseClient";
-import StudentPicker from "../components/StudentPicker";
-import AuthGate from "../components/AuthGate";
-import Footer from "../components/Footer";
+import { useEffect, useState } from "react";
+import { supabase } from "../../lib/supabaseClient";
+import { getAccessToken } from "../../lib/authClient";
+import Footer from "../../components/Footer";
+import PricingManager from "../../components/PricingManager";
 
-const requireApproval = process.env.NEXT_PUBLIC_REQUIRE_APPROVAL === "true";
+const DURATIONS = [
+  { label: "No expiry", months: 0 },
+  { label: "1 month", months: 1 },
+  { label: "3 months", months: 3 },
+  { label: "6 months", months: 6 },
+  { label: "12 months", months: 12 },
+];
 
-export default function Home() {
-  const router = useRouter();
-  const [studentName, setStudentName] = useState("Glory");
-  const [studentId, setStudentId] = useState(null);
+function monthsFromNow(months) {
+  const d = new Date();
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString();
+}
+
+function formatExpiry(expiresAt) {
+  if (!expiresAt) return "Never";
+  const date = new Date(expiresAt);
+  const isPast = date < new Date();
+  const formatted = date.toLocaleDateString();
+  return isPast ? `Expired ${formatted}` : formatted;
+}
+
+export default function AdminPage() {
+  const [session, setSession] = useState(undefined);
   const [profile, setProfile] = useState(null);
-  const [country, setCountry] = useState("ghana");
-  const [level, setLevel] = useState(COUNTRIES.ghana.levels[0]);
-  const [track, setTrack] = useState(null);
-  const [subject, setSubject] = useState(null);
-  const [topic, setTopic] = useState("");
-  const [topicList, setTopicList] = useState([]);
-  const [topicListSource, setTopicListSource] = useState(null); // "syllabus" | "ai-suggested"
-  const [topicListLoading, setTopicListLoading] = useState(false);
-  const [searchTopic, setSearchTopic] = useState("");
-
-  const countryData = COUNTRIES[country];
-  const trackNames = Object.keys(countryData.tracks);
-  const subjects = useMemo(() => listSubjectsFor(country, track), [country, track]);
+  const [profiles, setProfiles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [durations, setDurations] = useState({}); // profileId -> months selected
+  const [tab, setTab] = useState("users"); // "users" | "pricing"
 
   useEffect(() => {
-    if (!subject) {
-      setTopicList([]);
-      setTopicListSource(null);
+    init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function init() {
+    if (!supabase) {
+      setLoading(false);
       return;
     }
-    let cancelled = false;
-    setTopicListLoading(true);
-    setTopicList([]);
-    fetch("/api/topics", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ country, level, track, subject }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (cancelled) return;
-        setTopicList(data.topics || []);
-        setTopicListSource(data.source || null);
-      })
-      .catch(() => {
-        if (!cancelled) setTopicListSource(null);
-      })
-      .finally(() => {
-        if (!cancelled) setTopicListLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [country, level, track, subject]);
-
-  function pickCountry(key) {
-    setCountry(key);
-    setLevel(COUNTRIES[key].levels[0]);
-    setTrack(null);
-    setSubject(null);
-    setTopic("");
-    setSearchTopic("");
+    const { data } = await supabase.auth.getSession();
+    setSession(data.session);
+    if (!data.session) {
+      setLoading(false);
+      return;
+    }
+    const { data: prof } = await supabase.from("profiles").select("*").eq("id", data.session.user.id).single();
+    setProfile(prof);
+    if (prof?.role === "admin") await loadProfiles();
+    setLoading(false);
   }
 
-  function start() {
-    if (!subject || !topic.trim()) return;
-    if (requireApproval && !profile) return;
-    const params = new URLSearchParams({
-      name: studentName || "Student",
-      studentId: studentId || "",
-      country,
-      level,
-      track: track || "",
-      subject,
-      topic: topic.trim(),
+  async function loadProfiles() {
+    const token = await getAccessToken();
+    const res = await fetch("/api/admin/list-profiles", { headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    if (data.error) {
+      setError(data.error);
+      return;
+    }
+    setProfiles(data.profiles);
+  }
+
+  async function updateProfile(targetUserId, updates) {
+    const token = await getAccessToken();
+    const res = await fetch("/api/admin/update-profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ targetUserId, ...updates }),
     });
-    router.push(`/learn?${params.toString()}`);
+    const data = await res.json();
+    if (data.error) {
+      alert(data.error);
+      return;
+    }
+    loadProfiles();
+  }
+
+  function approve(p) {
+    const months = durations[p.id] ?? 0;
+    const updates = { status: "approved" };
+    if (months > 0) updates.expiresAt = monthsFromNow(months);
+    else updates.clearExpiry = true;
+    updateProfile(p.id, updates);
+  }
+
+  function extend(p) {
+    const months = durations[p.id] ?? 0;
+    if (months === 0) {
+      updateProfile(p.id, { clearExpiry: true });
+    } else {
+      updateProfile(p.id, { expiresAt: monthsFromNow(months) });
+    }
+  }
+
+  const backHome = (
+    <a
+      href="/"
+      style={{ color: "var(--paper)", fontFamily: "var(--font-display)", display: "inline-block", marginBottom: 16 }}
+    >
+      ← Back home
+    </a>
+  );
+
+  if (loading) {
+    return (
+      <main className="wrap">
+        {backHome}
+        <p>Loading…</p>
+      </main>
+    );
+  }
+
+  if (!session) {
+    return (
+      <main className="wrap">
+        {backHome}
+        <section className="hero">
+          <h1>🔐 Admin</h1>
+          <p>Sign in from the home page first, then come back here.</p>
+        </section>
+        <Footer />
+      </main>
+    );
+  }
+
+  if (profile?.role !== "admin") {
+    return (
+      <main className="wrap">
+        {backHome}
+        <section className="hero">
+          <h1>🔐 Admin</h1>
+          <p>Your account doesn't have admin access.</p>
+        </section>
+        <Footer />
+      </main>
+    );
   }
 
   return (
     <main className="wrap">
+      {backHome}
+
       <section className="hero">
-        <span className="chalk-tag">Welcome back to class ✎</span>
-        <h1>Learn With Glory</h1>
-        <p className="hero-subtitle">The app that began as "Glory, Be My Teacher" — a gift for one student, now for every student.</p>
-        <p>
-          A study companion for senior high school — Ghana, Nigeria, the UK, and the USA.
-          Pick your country, your track, your subject, and tell your teacher what you want
-          to learn today.
-        </p>
-        <div className="top-links">
-          <a href="/past-questions">📝 Past Questions</a>
-          {dbEnabled && (
-            <>
-              <span className="footer-dot">·</span>
-              <a href="/review">🔁 Review due questions</a>
-              <span className="footer-dot">·</span>
-              <a href="/dashboard">📊 Parent / Teacher Dashboard</a>
-              {requireApproval && profile?.role === "admin" && (
-                <>
-                  <span className="footer-dot">·</span>
-                  <a href="/admin">🔐 Admin</a>
-                </>
-              )}
-            </>
-          )}
-        </div>
+        <span className="chalk-tag">Admin ✎</span>
+        <h1>Admin</h1>
+        <p>Approve accounts, or manage pricing plans — switch tabs below.</p>
       </section>
 
-      {requireApproval ? (
-        <AuthGate
-          onReady={(p) => {
-            setProfile(p);
-            if (p) {
-              setStudentId(p.id);
-              setStudentName(p.name);
-            }
-          }}
-        />
-      ) : dbEnabled ? (
-        <StudentPicker
-          onSelect={(s) => {
-            setStudentId(s.id);
-            setStudentName(s.name);
-          }}
-        />
-      ) : (
+      <div className="puzzle-tabs">
+        <button className={`chip ${tab === "users" ? "chip-active" : ""}`} onClick={() => setTab("users")}>
+          👤 Users
+        </button>
+        <button className={`chip ${tab === "pricing" ? "chip-active" : ""}`} onClick={() => setTab("pricing")}>
+          💳 Pricing
+        </button>
+      </div>
+
+      {error && <p className="dictionary-error">{error}</p>}
+
+      {tab === "pricing" && <PricingManager />}
+
+      {tab === "users" && (
         <>
-          <div className="step-label">Your name</div>
-          <div className="grid" style={{ gridTemplateColumns: "1fr" }}>
-            <input
-              value={studentName}
-              onChange={(e) => setStudentName(e.target.value)}
-              placeholder="What should your teacher call you?"
-              style={{
-                padding: "14px 16px",
-                borderRadius: 10,
-                border: "none",
-                fontFamily: "var(--font-body)",
-                fontSize: "1rem",
-              }}
-            />
+          <p style={{ color: "rgba(251,247,236,0.75)" }}>
+            Pick how long an approval should last before approving — leave "No expiry" for unlimited access.
+          </p>
+          <div style={{ textAlign: "right", maxWidth: 900, margin: "0 auto 10px" }}>
+            <button className="chip" onClick={loadProfiles}>
+              🔄 Refresh list
+            </button>
           </div>
-        </>
-      )}
-
-      <div className="step-label">1. Country / system</div>
-      <div className="grid">
-        {Object.entries(COUNTRIES).map(([key, c]) => (
-          <button
-            key={key}
-            className={`card-btn ${country === key ? "selected" : ""}`}
-            onClick={() => pickCountry(key)}
-          >
-            {c.name}
-            <span className="sub">{c.levelLabel}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="provenance">
-        {countryData.verified ? "✔ " : "⚠ "}
-        {countryData.source}
-      </div>
-
-      <div className="step-label">2. Level / year</div>
-      <div className="grid">
-        {countryData.levels.map((l) => (
-          <button
-            key={l}
-            className={`card-btn ${level === l ? "selected" : ""}`}
-            onClick={() => setLevel(l)}
-          >
-            {l}
-          </button>
-        ))}
-      </div>
-
-      {trackNames.length > 0 && (
-        <>
-          <div className="step-label">3. Track / stream</div>
-          <div className="grid">
-            {trackNames.map((t) => (
-              <button
-                key={t}
-                className={`card-btn ${track === t ? "selected" : ""}`}
-                onClick={() => {
-                  setTrack(t);
-                  setSubject(null);
-                  setTopic("");
-                  setSearchTopic("");
-                }}
-              >
-                {t}
-              </button>
+          <div className="visual-block" style={{ maxWidth: 900, margin: "0 auto", overflowX: "auto" }}>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Status</th>
+              <th>Expires</th>
+              <th>Role</th>
+              <th>Duration</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {profiles.map((p) => (
+              <tr key={p.id}>
+                <td>
+                  {p.name} {p.isSuperAdmin && <span title="Protected super admin">🛡️</span>}
+                </td>
+                <td>{p.email}</td>
+                <td>{p.status}</td>
+                <td>{formatExpiry(p.expires_at)}</td>
+                <td>{p.role}</td>
+                <td>
+                  {!p.isSuperAdmin && (
+                    <select
+                      value={durations[p.id] ?? 0}
+                      onChange={(e) => setDurations((d) => ({ ...d, [p.id]: Number(e.target.value) }))}
+                      style={{ padding: "6px 8px", borderRadius: 6, border: "1px solid var(--paper-line)" }}
+                    >
+                      {DURATIONS.map((d) => (
+                        <option key={d.months} value={d.months}>
+                          {d.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </td>
+                <td style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {p.isSuperAdmin ? (
+                    <span style={{ color: "var(--muted)", fontSize: "0.85rem" }}>Protected account</span>
+                  ) : (
+                    <>
+                      {p.status !== "approved" && (
+                        <button className="chip" onClick={() => approve(p)}>
+                          Approve
+                        </button>
+                      )}
+                      {p.status === "approved" && (
+                        <button className="chip" onClick={() => extend(p)}>
+                          Update expiry
+                        </button>
+                      )}
+                      {p.status !== "rejected" && (
+                        <button className="chip" onClick={() => updateProfile(p.id, { status: "rejected" })}>
+                          Reject
+                        </button>
+                      )}
+                      {p.role !== "admin" && (
+                        <button className="chip" onClick={() => updateProfile(p.id, { role: "admin" })}>
+                          Make Admin
+                        </button>
+                      )}
+                    </>
+                  )}
+                </td>
+              </tr>
             ))}
+          </tbody>
+        </table>
+        {profiles.length === 0 && <p>No accounts yet.</p>}
           </div>
         </>
       )}
-
-      <div className="step-label">4. Subject</div>
-      <div className="grid">
-        {subjects.map((s) => (
-          <button
-            key={s}
-            className={`card-btn ${subject === s ? "selected" : ""}`}
-            onClick={() => {
-              setSubject(s);
-              setTopic("");
-              setSearchTopic("");
-            }}
-          >
-            {s}
-          </button>
-        ))}
-      </div>
-
-      <div className="step-label">5. Topic for today — tap one from the syllabus</div>
-      {!subject && (
-        <p style={{ color: "rgba(251,247,236,0.6)" }}>Pick a subject above first.</p>
-      )}
-      {subject && topicListLoading && (
-        <p style={{ color: "rgba(251,247,236,0.7)" }}>Loading topics…</p>
-      )}
-      {subject && !topicListLoading && topicList.length > 0 && (
-        <>
-          <div className="provenance">
-            {topicListSource === "syllabus"
-              ? "✔ From your ingested official syllabus document"
-              : "⚠ AI-suggested topic list — double-check against your textbook or syllabus"}
-          </div>
-          <div className="grid">
-            {topicList.map((t) => (
-              <button
-                key={t}
-                className={`card-btn ${topic === t ? "selected" : ""}`}
-                onClick={() => {
-                  setTopic(t);
-                  setSearchTopic("");
-                }}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-      {subject && !topicListLoading && topicList.length === 0 && (
-        <p style={{ color: "rgba(251,247,236,0.7)" }}>
-          Couldn't load a topic list right now — use search below instead.
-        </p>
-      )}
-
-      <div className="step-label">6. Or search for a specific topic</div>
-      <div className="grid" style={{ gridTemplateColumns: "1fr" }}>
-        <input
-          value={searchTopic}
-          onChange={(e) => {
-            setSearchTopic(e.target.value);
-            setTopic(e.target.value);
-          }}
-          placeholder='e.g. "Algebraic Expressions", "The Cell", "Trigonometric Ratios"'
-          style={{
-            padding: "14px 16px",
-            borderRadius: 10,
-            border: "none",
-            fontFamily: "var(--font-body)",
-            fontSize: "1rem",
-          }}
-        />
-      </div>
-
-      {topic && (
-        <p style={{ color: "var(--chalk-yellow)", fontFamily: "var(--font-chalk)", fontSize: "1.05rem" }}>
-          Today's topic: {topic}
-        </p>
-      )}
-
-      <button
-        className="primary-btn"
-        onClick={start}
-        disabled={!subject || !topic.trim() || (requireApproval && !profile)}
-      >
-        Start today's lesson →
-      </button>
 
       <Footer />
     </main>
