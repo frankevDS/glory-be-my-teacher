@@ -104,7 +104,7 @@ export default function Home() {
               <a href="/review">🔁 Review due questions</a>
               <span className="footer-dot">·</span>
               <a href="/dashboard">📊 Parent / Teacher Dashboard</a>
-              {requireApproval && (
+              {requireApproval && profile?.role === "admin" && (
                 <>
                   <span className="footer-dot">·</span>
                   <a href="/admin">🔐 Admin</a>
