@@ -102,9 +102,19 @@ export default function AdminPage() {
     }
   }
 
+  const backHome = (
+    <a
+      href="/"
+      style={{ color: "var(--paper)", fontFamily: "var(--font-display)", display: "inline-block", marginBottom: 16 }}
+    >
+      ← Back home
+    </a>
+  );
+
   if (loading) {
     return (
       <main className="wrap">
+        {backHome}
         <p>Loading…</p>
       </main>
     );
@@ -113,6 +123,7 @@ export default function AdminPage() {
   if (!session) {
     return (
       <main className="wrap">
+        {backHome}
         <section className="hero">
           <h1>🔐 Admin</h1>
           <p>Sign in from the home page first, then come back here.</p>
@@ -125,6 +136,7 @@ export default function AdminPage() {
   if (profile?.role !== "admin") {
     return (
       <main className="wrap">
+        {backHome}
         <section className="hero">
           <h1>🔐 Admin</h1>
           <p>Your account doesn't have admin access.</p>
@@ -136,12 +148,7 @@ export default function AdminPage() {
 
   return (
     <main className="wrap">
-      <a
-        href="/"
-        style={{ color: "var(--paper)", fontFamily: "var(--font-display)", display: "inline-block", marginBottom: 16 }}
-      >
-        ← Back home
-      </a>
+      {backHome}
 
       <section className="hero">
         <span className="chalk-tag">Admin ✎</span>
@@ -167,6 +174,11 @@ export default function AdminPage() {
           <p style={{ color: "rgba(251,247,236,0.75)" }}>
             Pick how long an approval should last before approving — leave "No expiry" for unlimited access.
           </p>
+          <div style={{ textAlign: "right", maxWidth: 900, margin: "0 auto 10px" }}>
+            <button className="chip" onClick={loadProfiles}>
+              🔄 Refresh list
+            </button>
+          </div>
           <div className="visual-block" style={{ maxWidth: 900, margin: "0 auto", overflowX: "auto" }}>
         <table className="data-table">
           <thead>
