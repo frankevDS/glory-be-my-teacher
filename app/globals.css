@@ -344,6 +344,7 @@ input:focus-visible {
 
 .visual-block {
   background: white;
+  color: var(--ink);
   border: 1px solid var(--paper-line);
   border-radius: 10px;
   padding: 14px 16px;
@@ -371,6 +372,7 @@ input:focus-visible {
   border: 1px solid var(--paper-line);
   padding: 8px 10px;
   text-align: left;
+  color: var(--ink);
 }
 
 .data-table th {
