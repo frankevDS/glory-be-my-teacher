@@ -30,11 +30,12 @@ if (!pdfPath || !country || !subject) {
 
 async function main() {
   const rawText = await extractText(pdfPath);
-  const chunks = chunkText(rawText);
+  const { chunks, debugLines } = chunkText(rawText);
 
   const outDir = path.join(__dirname, "..", "syllabus-index");
   fs.mkdirSync(outDir, { recursive: true });
   const outPath = path.join(outDir, `${slugify(country)}-${slugify(subject)}.json`);
+  const debugPath = path.join(outDir, `${slugify(country)}-${slugify(subject)}.debug.txt`);
 
   fs.writeFileSync(
     outPath,
@@ -52,17 +53,45 @@ async function main() {
     )
   );
 
+  // A plain-text dump of every extracted line, with "### HEADING ###" marked
+  // next to any line that was recognized as a Strand/Sub-Strand heading.
+  // This exists purely for diagnosis when the topic list doesn't look right
+  // — open this file, find a section that should have been split up but
+  // wasn't, and share those lines so the detection can be corrected against
+  // what your PDF actually looks like after extraction, instead of guessing.
+  fs.writeFileSync(debugPath, debugLines.join("\n"));
+
+  const headingCount = debugLines.filter((l) => l.startsWith("### HEADING")).length;
   console.log(`Indexed ${chunks.length} chunks from "${pdfPath}" -> ${outPath}`);
+  console.log(`Detected ${headingCount} heading(s). Raw text dump for review -> ${debugPath}`);
+  if (headingCount < 5) {
+    console.log(
+      "⚠ That's a low heading count for a full SHS 1-3 syllabus — open the .debug.txt file, " +
+        "find where a real Strand/Sub-Strand heading appears in the raw text, and share those " +
+        "lines so the detection pattern can be fixed to match your document's actual layout."
+    );
+  }
   console.log("Redeploy (or restart `next dev`) for the tutor to pick this up.");
 }
 
 // Splits raw PDF text into chunks, trying to detect heading-like lines
 // (Strand/Sub-Strand headings only — see note below on why the heuristic
 // was tightened).
+function normalizeLine(l) {
+  // Real PDF text extraction often inserts stray spaces around punctuation
+  // (e.g. "Strand 2 . ALGEBRAIC" instead of "Strand 2. ALGEBRAIC"), which
+  // otherwise causes the exact same heading to be treated as two different
+  // ones. Collapse that out before anything else touches the line.
+  return l
+    .replace(/\s+/g, " ")
+    .replace(/\s+([.,;:])/g, "$1")
+    .trim();
+}
+
 function chunkText(rawText) {
   const rawLines = rawText
     .split("\n")
-    .map((l) => l.trim())
+    .map((l) => normalizeLine(l))
     .filter(Boolean);
 
   // Real PDFs repeat a page header/footer on every single page (e.g.
@@ -84,9 +113,20 @@ function chunkText(rawText) {
   // shouldn't have to tap through. Content between real headings still
   // gets grouped under "General" and is still searchable/usable for
   // lesson grounding; it just won't appear as a standalone topic button.
-  const headingPattern = /^(strand|sub-strand)\s+\d+/i;
+  // The "sub\s*-?\s*strand" spacing tolerance matters: PDF extraction can
+  // turn "Sub-Strand" into "Sub - Strand" or "Sub Strand" depending on how
+  // the original document kerns that word, and a too-strict pattern here
+  // silently swallows real sub-topics into the parent strand's body text
+  // instead of giving them their own topic button.
+  // "strand"/"sub-strand" doesn't have to be the very first character of
+  // the line — PDF extraction sometimes glues a stray leading character or
+  // bullet onto the start of a heading line. Searching within the first ~6
+  // characters catches that without becoming so loose it matches the word
+  // "strand" appearing mid-sentence in body text.
+  const headingPattern = /^.{0,6}?(sub\s*-?\s*strand|strand)\s+\d+/i;
 
   const chunks = [];
+  const debugLines = [];
   let currentHeading = "General";
   let buffer = [];
   const MAX_WORDS_PER_CHUNK = 220;
@@ -105,9 +145,20 @@ function chunkText(rawText) {
   for (const line of lines) {
     if (headingPattern.test(line)) {
       flush();
-      currentHeading = line.slice(0, 120);
+      // A page number sometimes ends up glued onto the tail end of a
+      // heading line (e.g. "SUB-STRAND 2. REAL NUMBER SYSTEM174") because
+      // it landed at nearly the same vertical position during extraction.
+      // Strip a trailing run of digits so it doesn't become part of the
+      // topic's displayed name.
+      currentHeading = line
+        .replace(/\d{1,4}$/, "")
+        .replace(/^[^a-z]*/i, "")
+        .trim()
+        .slice(0, 120);
+      debugLines.push(`### HEADING ### ${line}`);
       continue;
     }
+    debugLines.push(line);
     buffer.push(line);
     const wordCount = buffer.join(" ").split(/\s+/).length;
     if (wordCount >= MAX_WORDS_PER_CHUNK) {
@@ -116,7 +167,7 @@ function chunkText(rawText) {
   }
   flush();
 
-  return chunks;
+  return { chunks, debugLines };
 }
 
 function slugify(s) {
