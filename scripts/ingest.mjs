@@ -57,15 +57,34 @@ async function main() {
 }
 
 // Splits raw PDF text into chunks, trying to detect heading-like lines
-// (Strand/Unit/Chapter/Topic/ALL CAPS short lines) to label each chunk.
+// (Strand/Sub-Strand headings only — see note below on why the heuristic
+// was tightened).
 function chunkText(rawText) {
-  const lines = rawText
+  const rawLines = rawText
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean);
 
-  const headingPattern = /^(strand|sub-strand|unit|chapter|topic|module|theme)\b/i;
-  const allCapsShort = (l) => l.length < 70 && l === l.toUpperCase() && /[A-Z]/.test(l);
+  // Real PDFs repeat a page header/footer on every single page (e.g.
+  // "24 | MATHEMATICS" or a bare page number). Left in, these get
+  // mistaken for real headings and flood the topic list with junk — strip
+  // them before anything else.
+  const lines = rawLines.filter((l) => {
+    if (/^\d+\s*\|\s*[a-z\s]+$/i.test(l)) return false; // "24 | MATHEMATICS"
+    if (/^[a-z\s]+\s*\|\s*\d+$/i.test(l)) return false; // "MATHEMATICS | 25"
+    if (/^\d+$/.test(l)) return false; // bare page number
+    return true;
+  });
+
+  // Deliberately narrow: only genuine "Strand N." / "Sub-Strand N." lines
+  // count as headings. An earlier, looser version of this also treated any
+  // short ALL-CAPS line as a heading, which caught front-matter sections
+  // (Foreword, Vision, Writers), equation fragments, and learning-indicator
+  // codes as if they were real topics — exactly the noise a student
+  // shouldn't have to tap through. Content between real headings still
+  // gets grouped under "General" and is still searchable/usable for
+  // lesson grounding; it just won't appear as a standalone topic button.
+  const headingPattern = /^(strand|sub-strand)\s+\d+/i;
 
   const chunks = [];
   let currentHeading = "General";
@@ -84,7 +103,7 @@ function chunkText(rawText) {
   }
 
   for (const line of lines) {
-    if (headingPattern.test(line) || allCapsShort(line)) {
+    if (headingPattern.test(line)) {
       flush();
       currentHeading = line.slice(0, 120);
       continue;
