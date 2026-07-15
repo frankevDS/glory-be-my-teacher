@@ -126,7 +126,7 @@ export default function VisualBlock({ data }) {
     return (
       <div className="visual-block">
         {data.title && <div className="visual-title">{data.title}</div>}
-        <div style={{ maxWidth: 480 }}>
+        <div style={{ maxWidth: 480, margin: "0 auto" }}>
           <Line data={chartData} options={options} />
         </div>
       </div>
@@ -157,7 +157,7 @@ export default function VisualBlock({ data }) {
     return (
       <div className="visual-block">
         {data.title && <div className="visual-title">{data.title}</div>}
-        <div style={{ maxWidth: 480 }}>
+        <div style={{ maxWidth: 480, margin: "0 auto" }}>
           {data.type === "bar" && <Bar data={chartData} options={options} />}
           {data.type === "line" && <Line data={chartData} options={options} />}
           {data.type === "pie" && <Pie data={chartData} options={options} />}
@@ -195,8 +195,8 @@ function DiagramSVG({ nodes, edges }) {
   if (!nodes || nodes.length === 0) return null;
   const boxW = 140;
   const boxH = 60;
-  const gapX = 50;
-  const gapY = 68;
+  const gapX = 74; // wider gap so edge labels have real breathing room
+  const gapY = 80;
   const perRow = Math.min(nodes.length, 4) || 1;
 
   const positions = {};
@@ -217,7 +217,7 @@ function DiagramSVG({ nodes, edges }) {
   const fill = "#F2C14E4D";
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} width="100%" style={{ maxWidth: 580, height: "auto" }}>
+    <svg viewBox={`0 0 ${width} ${height}`} width="100%" style={{ maxWidth: 580, height: "auto", display: "block", margin: "0 auto" }}>
       <defs>
         <marker id="diagram-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" fill={stroke} />
@@ -247,9 +247,19 @@ function DiagramSVG({ nodes, edges }) {
               markerEnd="url(#diagram-arrow)"
             />
             {e.label && (
-              <text x={midX} y={midY - 8} fontSize="12" fontWeight="700" textAnchor="middle" fill={stroke}>
-                {e.label}
-              </text>
+              <g>
+                <rect
+                  x={midX - (e.label.length * 3.6 + 6)}
+                  y={midY - 22}
+                  width={e.label.length * 7.2 + 12}
+                  height={16}
+                  fill="white"
+                  rx="4"
+                />
+                <text x={midX} y={midY - 10} fontSize="12" fontWeight="700" textAnchor="middle" fill={stroke}>
+                  {e.label}
+                </text>
+              </g>
             )}
           </g>
         );
@@ -290,7 +300,12 @@ function DiagramSVG({ nodes, edges }) {
 }
 
 function ShapeSVG({ shape, labels }) {
-  const common = { viewBox: "0 0 220 180", width: 220, height: 180 };
+  const common = {
+    viewBox: "0 0 220 180",
+    width: 220,
+    height: 180,
+    style: { display: "block", margin: "0 auto" },
+  };
   const stroke = "#1F3A2E";
   const fill = "#F2C14E33";
 
