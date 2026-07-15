@@ -105,25 +105,24 @@ function chunkText(rawText) {
     return true;
   });
 
-  // Deliberately narrow: only genuine "Strand N." / "Sub-Strand N." lines
-  // count as headings. An earlier, looser version of this also treated any
-  // short ALL-CAPS line as a heading, which caught front-matter sections
-  // (Foreword, Vision, Writers), equation fragments, and learning-indicator
-  // codes as if they were real topics — exactly the noise a student
-  // shouldn't have to tap through. Content between real headings still
-  // gets grouped under "General" and is still searchable/usable for
-  // lesson grounding; it just won't appear as a standalone topic button.
-  // The "sub\s*-?\s*strand" spacing tolerance matters: PDF extraction can
-  // turn "Sub-Strand" into "Sub - Strand" or "Sub Strand" depending on how
-  // the original document kerns that word, and a too-strict pattern here
-  // silently swallows real sub-topics into the parent strand's body text
-  // instead of giving them their own topic button.
-  // "strand"/"sub-strand" doesn't have to be the very first character of
-  // the line — PDF extraction sometimes glues a stray leading character or
-  // bullet onto the start of a heading line. Searching within the first ~6
-  // characters catches that without becoming so loose it matches the word
-  // "strand" appearing mid-sentence in body text.
-  const headingPattern = /^.{0,6}?(sub\s*-?\s*strand|strand)\s+\d+/i;
+  // Two real formats show up in the same document: sometimes the heading is
+  // one line ("Strand 2. ALGEBRAIC REASONING"), and sometimes the label and
+  // the number+name are on SEPARATE lines entirely — a "Strand" line alone,
+  // then "3. GEOMETRY AROUND US" as the very next line. Both are handled
+  // below; missing the second form was why entire later sections (Geometry,
+  // Data, Probability) were silently vanishing into the general bucket.
+  const inlineHeadingPattern = /^.{0,6}?(sub\s*-?\s*strand|strand)\s+(\d+.+)/i;
+  const loneLabelPattern = /^(sub\s*-?\s*strand|strand)$/i;
+  const numberedNamePattern = /^\d+\.?\s*\S/;
+
+  function cleanHeading(raw) {
+    return raw
+      .replace(/\d{1,4}$/, "")
+      .replace(/^[^a-z]*/i, "")
+      .replace(/sub\s*-?\s*strand/gi, "Sub-Strand")
+      .trim()
+      .slice(0, 120);
+  }
 
   const chunks = [];
   const debugLines = [];
@@ -142,22 +141,29 @@ function chunkText(rawText) {
     buffer = [];
   }
 
-  for (const line of lines) {
-    if (headingPattern.test(line)) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const next = lines[i + 1];
+
+    // Split-across-two-lines form: "Strand" (or "Sub - Strand") alone,
+    // immediately followed by "3. GEOMETRY AROUND US".
+    if (loneLabelPattern.test(line) && next && numberedNamePattern.test(next)) {
       flush();
-      // A page number sometimes ends up glued onto the tail end of a
-      // heading line (e.g. "SUB-STRAND 2. REAL NUMBER SYSTEM174") because
-      // it landed at nearly the same vertical position during extraction.
-      // Strip a trailing run of digits so it doesn't become part of the
-      // topic's displayed name.
-      currentHeading = line
-        .replace(/\d{1,4}$/, "")
-        .replace(/^[^a-z]*/i, "")
-        .trim()
-        .slice(0, 120);
+      const label = /sub/i.test(line) ? "Sub-Strand" : "Strand";
+      currentHeading = cleanHeading(`${label} ${next}`);
+      debugLines.push(`### HEADING ### ${line} / ${next}`);
+      i++; // consume the next line too, it's part of this heading
+      continue;
+    }
+
+    // Same-line form: "Strand 2. ALGEBRAIC REASONING".
+    if (inlineHeadingPattern.test(line)) {
+      flush();
+      currentHeading = cleanHeading(line);
       debugLines.push(`### HEADING ### ${line}`);
       continue;
     }
+
     debugLines.push(line);
     buffer.push(line);
     const wordCount = buffer.join(" ").split(/\s+/).length;
