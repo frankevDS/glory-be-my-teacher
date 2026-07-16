@@ -22,6 +22,8 @@ export default function PastQuestionsPage() {
   const [viewError, setViewError] = useState("");
 
   const [quiz, setQuiz] = useState(null);
+  const [quizIsLookalike, setQuizIsLookalike] = useState(false);
+  const [quizYearLabel, setQuizYearLabel] = useState(null);
   const [quizIndex, setQuizIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [selectedOption, setSelectedOption] = useState(null);
@@ -77,6 +79,32 @@ export default function PastQuestionsPage() {
     setPageSource(data.source);
   }
 
+  async function generateForYear(year) {
+    setSelectedYear(year);
+    setPages(null);
+    setViewError("");
+    setGenLoading(true);
+    setGenError("");
+    setScore(0);
+    setQuizIndex(0);
+    setSelectedOption(null);
+    setQuiz(null);
+    const res = await fetch("/api/past-questions/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await authHeader()) },
+      body: JSON.stringify({ country, level, track, subject, topic: "" }),
+    });
+    const data = await res.json();
+    setGenLoading(false);
+    if (data.error) {
+      setGenError(data.error);
+      return;
+    }
+    setQuiz(data.questions);
+    setQuizIsLookalike(true);
+    setQuizYearLabel(year);
+  }
+
   async function generatePractice() {
     setGenLoading(true);
     setGenError("");
@@ -97,6 +125,8 @@ export default function PastQuestionsPage() {
       return;
     }
     setQuiz(data.questions);
+    setQuizIsLookalike(false);
+    setQuizYearLabel(null);
   }
 
   function answer(idx) {
@@ -183,7 +213,11 @@ export default function PastQuestionsPage() {
 
       {subject && (
         <>
-          <div className="step-label">5. Real past papers (2020–2026)</div>
+          <div className="step-label">5. Past questions (2020–2026)</div>
+          <p style={{ color: "rgba(251,247,236,0.65)", fontSize: "0.9rem", marginTop: -6, marginBottom: 12 }}>
+            Years marked ✔ are real papers loaded in. Others generate a fresh, clearly-labeled AI practice
+            set styled like a typical exam — not a reproduction of that year's actual questions.
+          </p>
           <div className="grid">
             {YEARS.map((y) => {
               const real = availableYears.find((a) => a.year === y);
@@ -191,16 +225,16 @@ export default function PastQuestionsPage() {
                 <button
                   key={y}
                   className={`card-btn ${selectedYear === y ? "selected" : ""}`}
-                  onClick={() => real && viewYear(y)}
-                  disabled={!real}
-                  style={{ opacity: real ? 1 : 0.4 }}
+                  onClick={() => (real ? viewYear(y) : generateForYear(y))}
                 >
                   {y}
-                  <span className="sub">{real ? "✔ available" : "not loaded"}</span>
+                  <span className="sub">{real ? "✔ real paper" : "AI practice set"}</span>
                 </button>
               );
             })}
           </div>
+
+          {genLoading && <p>Preparing your practice set…</p>}
 
           {viewError && <p className="dictionary-error">{viewError}</p>}
 
@@ -248,6 +282,12 @@ export default function PastQuestionsPage() {
 
           {quiz && (
             <div className="quiz-card" style={{ maxWidth: 640, margin: "0 auto" }}>
+              {quizIsLookalike && (
+                <div className="provenance" style={{ background: "rgba(181,72,47,0.12)", color: "var(--clay)", marginBottom: 16 }}>
+                  ⚠ AI-generated practice questions styled like a typical {quizYearLabel} exam paper — NOT a
+                  reproduction of that year's actual questions. Organized under {quizYearLabel} for convenience only.
+                </div>
+              )}
               {!quizDone && (
                 <>
                   <div className="quiz-progress">
