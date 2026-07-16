@@ -7,6 +7,7 @@ import { dbEnabled } from "../lib/supabaseClient";
 import StudentPicker from "../components/StudentPicker";
 import AuthGate from "../components/AuthGate";
 import Footer from "../components/Footer";
+import { saveStudentId } from "../lib/studentClient";
 
 const requireApproval = process.env.NEXT_PUBLIC_REQUIRE_APPROVAL === "true";
 
@@ -122,6 +123,7 @@ export default function Home() {
             if (p) {
               setStudentId(p.id);
               setStudentName(p.name);
+              saveStudentId(p.id);
             }
           }}
         />
