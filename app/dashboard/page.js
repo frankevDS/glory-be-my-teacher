@@ -32,7 +32,7 @@ export default function DashboardPage() {
   }, [selectedId]);
 
   async function loadStudents() {
-    const { data } = await supabase.from("students").select("id, name").order("name");
+    const { data } = await supabase.from("students").select("id, name, email").order("name");
     setStudents(data || []);
     if (data && data.length > 0) setSelectedId(data[0].id);
   }
@@ -129,6 +129,7 @@ export default function DashboardPage() {
             onClick={() => setSelectedId(s.id)}
           >
             {s.name}
+            {s.email && <span className="sub">{s.email}</span>}
           </button>
         ))}
       </div>
