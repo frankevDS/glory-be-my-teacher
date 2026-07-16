@@ -237,7 +237,12 @@ function LearnInner() {
         </div>
 
         {showDictionary && mode === "chat" && (
-          <DictionaryPanel onClose={() => setShowDictionary(false)} />
+          <DictionaryPanel
+            onClose={() => setShowDictionary(false)}
+            country={country}
+            level={level}
+            subject={subject}
+          />
         )}
 
         {mode === "chat" && (
