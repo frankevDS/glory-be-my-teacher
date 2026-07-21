@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -98,6 +98,15 @@ export default function VisualBlock({ data }) {
       <div className="visual-block">
         {data.title && <div className="visual-title">{data.title}</div>}
         <DiagramSVG nodes={data.nodes || []} edges={data.edges || []} />
+      </div>
+    );
+  }
+
+  if (data.type === "illustration") {
+    return (
+      <div className="visual-block">
+        {data.title && <div className="visual-title">{data.title}</div>}
+        <IllustrationImage prompt={data.prompt} title={data.title} />
       </div>
     );
   }
@@ -296,6 +305,47 @@ function DiagramSVG({ nodes, edges }) {
         );
       })}
     </svg>
+  );
+}
+
+// Free, no-signup AI image generation via Pollinations.ai. Honest tradeoffs,
+// worth knowing: it's a third-party free service (no cost, but no uptime
+// guarantee either), generation takes a few seconds unlike the instant SVG
+// visuals, and — most importantly — image models are unreliable at
+// rendering readable text, which is why this is never asked to draw labels
+// itself (see the "illustration" instructions in lib/prompt.js — labels
+// always come from a separate hand-positioned "diagram" visual instead).
+function IllustrationImage({ prompt, title }) {
+  const [status, setStatus] = useState("loading"); // "loading" | "ready" | "error"
+  if (!prompt) return null;
+
+  // A light safety/quality suffix appended to every request — keeps results
+  // classroom-appropriate and nudges toward a clean, simple illustration
+  // style rather than anything photorealistic-gory or stylistically odd.
+  const fullPrompt = `${prompt}, educational illustration, safe for children, clean simple style, no text, no watermark`;
+  const src = `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}?width=512&height=384&nologo=true`;
+
+  return (
+    <div className="illustration-wrap">
+      {status === "loading" && <div className="illustration-loading">Generating image…</div>}
+      {status === "error" && (
+        <div className="illustration-loading">
+          Couldn't generate an image right now — the free image service may be busy. Try again in a moment.
+        </div>
+      )}
+      <img
+        src={src}
+        alt={title || prompt}
+        style={{
+          display: status === "ready" ? "block" : "none",
+          maxWidth: "100%",
+          borderRadius: 8,
+          margin: "0 auto",
+        }}
+        onLoad={() => setStatus("ready")}
+        onError={() => setStatus("error")}
+      />
+    </div>
   );
 }
 
