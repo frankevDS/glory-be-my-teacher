@@ -362,6 +362,17 @@ input:focus-visible {
   text-align: center;
 }
 
+.illustration-wrap {
+  text-align: center;
+}
+
+.illustration-loading {
+  color: var(--muted);
+  font-family: var(--font-chalk);
+  padding: 30px 10px;
+  font-size: 0.95rem;
+}
+
 .data-table {
   border-collapse: collapse;
   width: 100%;
@@ -486,6 +497,27 @@ input:focus-visible {
 .dictionary-meaning ol {
   margin: 4px 0 0 20px;
   padding: 0;
+}
+
+.dictionary-example {
+  color: var(--muted);
+  font-family: var(--font-chalk);
+  font-size: 0.9rem;
+  margin-top: 2px;
+}
+
+.dictionary-context {
+  margin-top: 16px;
+  border-top: 1px dashed var(--paper-line);
+  padding-top: 14px;
+}
+
+.dictionary-context-result {
+  margin-top: 10px;
+  background: rgba(76, 154, 106, 0.08);
+  border-left: 3px solid var(--leaf);
+  padding: 10px 14px;
+  border-radius: 4px;
 }
 
 /* ---- Leaderboard ---- */
