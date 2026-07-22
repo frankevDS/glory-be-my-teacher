@@ -22,14 +22,39 @@ export default function DashboardPage() {
   const [history, setHistory] = useState([]);
   const [dueCount, setDueCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [myProfile, setMyProfile] = useState(undefined); // undefined = loading, null = not signed in
+  const isAdmin = myProfile?.role === "admin";
 
   useEffect(() => {
-    if (dbEnabled) loadStudents();
+    if (dbEnabled) init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (selectedId) loadHistory(selectedId);
   }, [selectedId]);
+
+  async function init() {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const user = sessionData.session?.user;
+    if (!user) {
+      setMyProfile(null);
+      return;
+    }
+    const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+    setMyProfile(profile || null);
+
+    if (profile?.role === "admin") {
+      loadStudents();
+    } else {
+      // Regular users only ever see their own activity — no picker, no
+      // choice of other students. This isn't just hidden in the UI: the
+      // database itself now only returns your own rows unless you're an
+      // admin (see schema_v7_privacy.sql), so this is a real restriction,
+      // not just a display choice.
+      setSelectedId(user.id);
+    }
+  }
 
   async function loadStudents() {
     const { data } = await supabase.from("students").select("id, name, email").order("name");
@@ -108,6 +133,21 @@ export default function DashboardPage() {
     );
   }
 
+  if (myProfile === null) {
+    return (
+      <main className="wrap">
+        <a href="/" style={{ color: "var(--paper)", fontFamily: "var(--font-display)", display: "inline-block", marginBottom: 16 }}>
+          ← Back home
+        </a>
+        <section className="hero">
+          <h1>📊 Dashboard</h1>
+          <p>Sign in from the home page first to see your own progress here.</p>
+        </section>
+        <Footer />
+      </main>
+    );
+  }
+
   return (
     <main className="wrap">
       <a href="/" style={{ color: "var(--paper)", fontFamily: "var(--font-display)", display: "inline-block", marginBottom: 16 }}>
@@ -117,26 +157,34 @@ export default function DashboardPage() {
       <section className="hero">
         <span className="chalk-tag">For parents & teachers ✎</span>
         <h1>Progress Dashboard</h1>
-        <p>See what's been studied, how quizzes are going, and what needs another look.</p>
+        <p>
+          {isAdmin
+            ? "See what's been studied, how quizzes are going, and what needs another look."
+            : "Your own study progress — lessons, quiz scores, and what needs another look."}
+        </p>
       </section>
 
-      <div className="step-label">Student</div>
-      <div className="grid">
-        {students.map((s) => (
-          <button
-            key={s.id}
-            className={`card-btn ${selectedId === s.id ? "selected" : ""}`}
-            onClick={() => setSelectedId(s.id)}
-          >
-            {s.name}
-            {s.email && <span className="sub">{s.email}</span>}
-          </button>
-        ))}
-      </div>
-      {students.length === 0 && (
-        <p style={{ color: "rgba(251,247,236,0.75)" }}>
-          No students yet — start a lesson from the home page and pick/add a name there first.
-        </p>
+      {isAdmin && (
+        <>
+          <div className="step-label">Student</div>
+          <div className="grid">
+            {students.map((s) => (
+              <button
+                key={s.id}
+                className={`card-btn ${selectedId === s.id ? "selected" : ""}`}
+                onClick={() => setSelectedId(s.id)}
+              >
+                {s.name}
+                {s.email && <span className="sub">{s.email}</span>}
+              </button>
+            ))}
+          </div>
+          {students.length === 0 && (
+            <p style={{ color: "rgba(251,247,236,0.75)" }}>
+              No students yet — start a lesson from the home page and pick/add a name there first.
+            </p>
+          )}
+        </>
       )}
 
       {selectedId && (
