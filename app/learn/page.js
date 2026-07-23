@@ -32,6 +32,8 @@ function LearnInner() {
   const [quizLoading, setQuizLoading] = useState(false);
   const [showDictionary, setShowDictionary] = useState(false);
   const [puzzleData, setPuzzleData] = useState(null);
+  const usedWordsRef = useRef([]);
+  const usedSentencesRef = useRef([]);
   const [puzzleLoading, setPuzzleLoading] = useState(false);
   const [wrongAnswers, setWrongAnswers] = useState([]);
   const [quizLogged, setQuizLogged] = useState(false);
@@ -132,7 +134,15 @@ function LearnInner() {
     const res = await fetch("/api/puzzle", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(await authHeader()) },
-      body: JSON.stringify({ country, level, track, subject, topic }),
+      body: JSON.stringify({
+        country,
+        level,
+        track,
+        subject,
+        topic,
+        excludeWords: usedWordsRef.current,
+        excludeSentences: usedSentencesRef.current,
+      }),
     });
     const data = await res.json();
     setPuzzleLoading(false);
@@ -141,7 +151,45 @@ function LearnInner() {
       setMode("chat");
       return;
     }
+    usedWordsRef.current = [...usedWordsRef.current, ...(data.words || []).map((w) => w.word)];
+    usedSentencesRef.current = [...usedSentencesRef.current, ...(data.sentences || [])];
     setPuzzleData(data);
+  }
+
+  // Fetches a fresh batch and replaces ONLY the words (or ONLY the
+  // sentences) in place, leaving whichever tab the student isn't on
+  // untouched — this is what lets the Letter Puzzle keep handing out new
+  // words forever without ever switching to Sentence Builder on its own,
+  // and vice versa.
+  async function fetchMorePuzzleContent() {
+    const res = await fetch("/api/puzzle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await authHeader()) },
+      body: JSON.stringify({
+        country,
+        level,
+        track,
+        subject,
+        topic,
+        excludeWords: usedWordsRef.current,
+        excludeSentences: usedSentencesRef.current,
+      }),
+    });
+    const data = await res.json();
+    if (data.error) return null;
+    usedWordsRef.current = [...usedWordsRef.current, ...(data.words || []).map((w) => w.word)];
+    usedSentencesRef.current = [...usedSentencesRef.current, ...(data.sentences || [])];
+    return data;
+  }
+
+  async function onNeedMoreWords() {
+    const data = await fetchMorePuzzleContent();
+    if (data) setPuzzleData((prev) => ({ ...prev, words: data.words }));
+  }
+
+  async function onNeedMoreSentences() {
+    const data = await fetchMorePuzzleContent();
+    if (data) setPuzzleData((prev) => ({ ...prev, sentences: data.sentences }));
   }
 
   function answer(idx) {
@@ -375,7 +423,7 @@ function LearnInner() {
           <>
             {puzzleLoading && <div className="quiz-card">Building your puzzles…</div>}
             {!puzzleLoading && puzzleData && (
-              <PuzzleGame data={puzzleData} onMore={loadPuzzles} loadingMore={puzzleLoading} />
+              <PuzzleGame data={puzzleData} onNeedMoreWords={onNeedMoreWords} onNeedMoreSentences={onNeedMoreSentences} />
             )}
           </>
         )}
