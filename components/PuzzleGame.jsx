@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 function shuffleTiles(items) {
   const arr = items.map((value, i) => ({ id: `${i}-${value}-${Math.random()}`, value, used: false }));
@@ -42,14 +42,20 @@ function TileRow({ tiles, answerIds, onTapAvailable, onTapAnswer }) {
   );
 }
 
-function LetterPuzzle({ words }) {
+// Both puzzle types share the same shape: work through a batch of items,
+// and when you've reached the end, silently fetch a fresh batch (never
+// repeating what's already been shown) and keep going — no manual click
+// needed, and never switching tabs on its own.
+
+function LetterPuzzle({ words, onNeedMore }) {
   const [index, setIndex] = useState(0);
   const [answerIds, setAnswerIds] = useState([]);
   const [feedback, setFeedback] = useState(null); // null | "correct" | "wrong"
   const [score, setScore] = useState(0);
+  const [fetchingMore, setFetchingMore] = useState(false);
 
   const word = words[index];
-  const tiles = useMemo(() => shuffleTiles(word.word.toUpperCase().split("")), [index]);
+  const tiles = useMemo(() => shuffleTiles(word.word.toUpperCase().split("")), [index, word]);
 
   function tapAvailable(id) {
     if (feedback) return;
@@ -67,17 +73,28 @@ function LetterPuzzle({ words }) {
     if (correct) setScore((s) => s + 1);
   }
 
-  function next() {
+  async function next() {
     setFeedback(null);
     setAnswerIds([]);
-    setIndex((i) => (i + 1) % words.length);
+    if (index + 1 < words.length) {
+      setIndex(index + 1);
+      return;
+    }
+    // Reached the end of this batch — fetch fresh words rather than
+    // looping back to repeat the same six.
+    setFetchingMore(true);
+    await onNeedMore();
+    setIndex(0);
+    setFetchingMore(false);
+  }
+
+  if (fetchingMore) {
+    return <div className="quiz-progress">Getting you a fresh word…</div>;
   }
 
   return (
     <div>
-      <div className="quiz-progress">
-        Word {index + 1} of {words.length} · Score: {score}
-      </div>
+      <div className="quiz-progress">Word {index + 1} of {words.length} · Score: {score}</div>
       <div className="puzzle-clue">Clue: {word.clue}</div>
       <TileRow tiles={tiles} answerIds={answerIds} onTapAvailable={tapAvailable} onTapAnswer={tapAnswer} />
 
@@ -100,15 +117,16 @@ function LetterPuzzle({ words }) {
   );
 }
 
-function SentencePuzzle({ sentences }) {
+function SentencePuzzle({ sentences, onNeedMore }) {
   const [index, setIndex] = useState(0);
   const [answerIds, setAnswerIds] = useState([]);
   const [feedback, setFeedback] = useState(null);
   const [score, setScore] = useState(0);
+  const [fetchingMore, setFetchingMore] = useState(false);
 
   const sentence = sentences[index];
-  const words = useMemo(() => sentence.replace(/[.?!]$/, "").split(/\s+/), [index]);
-  const tiles = useMemo(() => shuffleTiles(words), [index]);
+  const words = useMemo(() => sentence.replace(/[.?!]$/, "").split(/\s+/), [index, sentence]);
+  const tiles = useMemo(() => shuffleTiles(words), [index, sentence]);
 
   function tapAvailable(id) {
     if (feedback) return;
@@ -126,17 +144,26 @@ function SentencePuzzle({ sentences }) {
     if (correct) setScore((s) => s + 1);
   }
 
-  function next() {
+  async function next() {
     setFeedback(null);
     setAnswerIds([]);
-    setIndex((i) => (i + 1) % sentences.length);
+    if (index + 1 < sentences.length) {
+      setIndex(index + 1);
+      return;
+    }
+    setFetchingMore(true);
+    await onNeedMore();
+    setIndex(0);
+    setFetchingMore(false);
+  }
+
+  if (fetchingMore) {
+    return <div className="quiz-progress">Getting you a fresh sentence…</div>;
   }
 
   return (
     <div>
-      <div className="quiz-progress">
-        Sentence {index + 1} of {sentences.length} · Score: {score}
-      </div>
+      <div className="quiz-progress">Sentence {index + 1} of {sentences.length} · Score: {score}</div>
       <TileRow tiles={tiles} answerIds={answerIds} onTapAvailable={tapAvailable} onTapAnswer={tapAnswer} />
 
       {!feedback && (
@@ -158,7 +185,7 @@ function SentencePuzzle({ sentences }) {
   );
 }
 
-export default function PuzzleGame({ data, onMore, loadingMore }) {
+export default function PuzzleGame({ data, onNeedMoreWords, onNeedMoreSentences }) {
   const [tab, setTab] = useState("letters");
 
   return (
@@ -172,14 +199,12 @@ export default function PuzzleGame({ data, onMore, loadingMore }) {
         </button>
       </div>
 
-      {tab === "letters" && <LetterPuzzle words={data.words} />}
-      {tab === "sentences" && <SentencePuzzle sentences={data.sentences} />}
+      {tab === "letters" && <LetterPuzzle words={data.words} onNeedMore={onNeedMoreWords} />}
+      {tab === "sentences" && <SentencePuzzle sentences={data.sentences} onNeedMore={onNeedMoreSentences} />}
 
-      <div style={{ textAlign: "center", marginTop: 18 }}>
-        <button className="chip" onClick={onMore} disabled={loadingMore}>
-          {loadingMore ? "Loading…" : "Get new puzzles"}
-        </button>
-      </div>
+      <p style={{ textAlign: "center", color: "var(--muted)", fontSize: "0.85rem", marginTop: 16 }}>
+        Keep answering — a fresh one loads automatically. Switch tabs anytime; it only changes when you tap the other one.
+      </p>
     </div>
   );
 }
