@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { COUNTRIES, listSubjectsFor } from "../lib/curriculum";
-import { dbEnabled } from "../lib/supabaseClient";
+import { dbEnabled, supabase } from "../lib/supabaseClient";
 import StudentPicker from "../components/StudentPicker";
 import AuthGate from "../components/AuthGate";
 import Footer from "../components/Footer";
@@ -23,6 +23,22 @@ export default function Home() {
   const [topic, setTopic] = useState("");
   const [topicList, setTopicList] = useState([]);
   const [topicListSource, setTopicListSource] = useState(null); // "syllabus" | "ai-suggested"
+
+  useEffect(() => {
+    if (!dbEnabled || !studentId) return;
+    const beat = () => {
+      supabase
+        .from("students")
+        .update({ last_seen: new Date().toISOString() })
+        .eq("id", studentId)
+        .then(({ error }) => {
+          if (error) console.error("Presence heartbeat failed:", error);
+        });
+    };
+    beat();
+    const interval = setInterval(beat, 45000);
+    return () => clearInterval(interval);
+  }, [studentId]);
   const [topicListLoading, setTopicListLoading] = useState(false);
   const [searchTopic, setSearchTopic] = useState("");
 
