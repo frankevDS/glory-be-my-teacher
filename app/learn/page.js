@@ -7,6 +7,7 @@ import SpeakButton from "../../components/SpeakButton";
 import DictionaryPanel from "../../components/DictionaryPanel";
 import Leaderboard from "../../components/Leaderboard";
 import PuzzleGame from "../../components/PuzzleGame";
+import VoiceInputButton from "../../components/VoiceInputButton";
 import { supabase, dbEnabled } from "../../lib/supabaseClient";
 
 function LearnInner() {
@@ -34,6 +35,7 @@ function LearnInner() {
   const [puzzleData, setPuzzleData] = useState(null);
   const usedWordsRef = useRef([]);
   const usedSentencesRef = useRef([]);
+  const usedQuestionsRef = useRef([]);
   const [puzzleLoading, setPuzzleLoading] = useState(false);
   const [wrongAnswers, setWrongAnswers] = useState([]);
   const [quizLogged, setQuizLogged] = useState(false);
@@ -43,15 +45,20 @@ function LearnInner() {
     // Kick off the first lesson automatically.
     sendToTutor(`Please teach me about "${topic}" in ${subject}.`, true);
     if (dbEnabled && studentId) {
-      supabase.from("study_history").insert({
-        student_id: studentId,
-        country,
-        level,
-        track: track || null,
-        subject,
-        topic,
-        activity_type: "lesson",
-      });
+      supabase
+        .from("study_history")
+        .insert({
+          student_id: studentId,
+          country,
+          level,
+          track: track || null,
+          subject,
+          topic,
+          activity_type: "lesson",
+        })
+        .then(({ error }) => {
+          if (error) console.error("Failed to log lesson activity:", error);
+        });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -59,6 +66,23 @@ function LearnInner() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (!dbEnabled || !studentId) return;
+    const beat = () => {
+      supabase
+        .from("students")
+        .update({ last_seen: new Date().toISOString() })
+        .eq("id", studentId)
+        .then(({ error }) => {
+          if (error) console.error("Presence heartbeat failed:", error);
+        });
+    };
+    beat(); // immediately on arrival
+    const interval = setInterval(beat, 45000); // then every 45s while the page stays open
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [studentId]);
 
   async function sendToTutor(text, isAuto = false) {
     const nextMessages = isAuto
@@ -116,7 +140,15 @@ function LearnInner() {
     const res = await fetch("/api/quiz", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(await authHeader()) },
-      body: JSON.stringify({ country, level, track, subject, topic, difficulty }),
+      body: JSON.stringify({
+        country,
+        level,
+        track,
+        subject,
+        topic,
+        difficulty,
+        excludeQuestions: usedQuestionsRef.current,
+      }),
     });
     const data = await res.json();
     setQuizLoading(false);
@@ -125,6 +157,11 @@ function LearnInner() {
       setMode("chat");
       return;
     }
+    // Remember every question text shown so far (capped at 200, per how
+    // much repetition-avoidance actually matters) so the next "10 more
+    // questions" click never repeats one already seen.
+    const newQuestions = (data.questions || []).map((q) => q.question);
+    usedQuestionsRef.current = [...usedQuestionsRef.current, ...newQuestions].slice(-200);
     setQuiz(data.questions);
   }
 
@@ -151,8 +188,8 @@ function LearnInner() {
       setMode("chat");
       return;
     }
-    usedWordsRef.current = [...usedWordsRef.current, ...(data.words || []).map((w) => w.word)];
-    usedSentencesRef.current = [...usedSentencesRef.current, ...(data.sentences || [])];
+    usedWordsRef.current = [...usedWordsRef.current, ...(data.words || []).map((w) => w.word)].slice(-200);
+    usedSentencesRef.current = [...usedSentencesRef.current, ...(data.sentences || [])].slice(-200);
     setPuzzleData(data);
   }
 
@@ -177,8 +214,8 @@ function LearnInner() {
     });
     const data = await res.json();
     if (data.error) return null;
-    usedWordsRef.current = [...usedWordsRef.current, ...(data.words || []).map((w) => w.word)];
-    usedSentencesRef.current = [...usedSentencesRef.current, ...(data.sentences || [])];
+    usedWordsRef.current = [...usedWordsRef.current, ...(data.words || []).map((w) => w.word)].slice(-200);
+    usedSentencesRef.current = [...usedSentencesRef.current, ...(data.sentences || [])].slice(-200);
     return data;
   }
 
@@ -220,30 +257,40 @@ function LearnInner() {
   useEffect(() => {
     if (!quizDone || quizLogged || !dbEnabled || !studentId) return;
     setQuizLogged(true);
-    supabase.from("study_history").insert({
-      student_id: studentId,
-      country,
-      level,
-      track: track || null,
-      subject,
-      topic,
-      activity_type: "quiz",
-      score,
-      total: quiz.length,
-    });
+    supabase
+      .from("study_history")
+      .insert({
+        student_id: studentId,
+        country,
+        level,
+        track: track || null,
+        subject,
+        topic,
+        activity_type: "quiz",
+        score,
+        total: quiz.length,
+      })
+      .then(({ error }) => {
+        if (error) console.error("Failed to log quiz activity:", error);
+      });
     if (wrongAnswers.length > 0) {
-      supabase.from("quiz_mistakes").insert(
-        wrongAnswers.map((q) => ({
-          student_id: studentId,
-          country,
-          subject,
-          topic,
-          question: q.question,
-          options: q.options,
-          correct_index: q.correctIndex,
-          explanation: q.explanation,
-        }))
-      );
+      supabase
+        .from("quiz_mistakes")
+        .insert(
+          wrongAnswers.map((q) => ({
+            student_id: studentId,
+            country,
+            subject,
+            topic,
+            question: q.question,
+            options: q.options,
+            correct_index: q.correctIndex,
+            explanation: q.explanation,
+          }))
+        )
+        .then(({ error }) => {
+          if (error) console.error("Failed to log quiz mistakes:", error);
+        });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quizDone]);
@@ -347,6 +394,7 @@ function LearnInner() {
                 placeholder="Ask your teacher anything about this topic…"
                 disabled={streaming}
               />
+              <VoiceInputButton onTranscript={(text) => setInput((prev) => (prev ? `${prev} ${text}` : text))} />
               <button className="primary-btn" type="submit" disabled={streaming || !input.trim()}>
                 Send
               </button>
