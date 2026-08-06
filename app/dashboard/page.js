@@ -16,6 +16,11 @@ import Footer from "../../components/Footer";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
 
+function isOnline(lastSeen) {
+  if (!lastSeen) return false;
+  return Date.now() - new Date(lastSeen).getTime() < 2 * 60 * 1000; // last 2 minutes
+}
+
 export default function DashboardPage() {
   const [students, setStudents] = useState([]);
   const [selectedId, setSelectedId] = useState("");
@@ -57,7 +62,7 @@ export default function DashboardPage() {
   }
 
   async function loadStudents() {
-    const { data } = await supabase.from("students").select("id, name, email").order("name");
+    const { data } = await supabase.from("students").select("id, name, email, last_seen").order("name");
     setStudents(data || []);
     if (data && data.length > 0) setSelectedId(data[0].id);
   }
@@ -174,6 +179,7 @@ export default function DashboardPage() {
                 className={`card-btn ${selectedId === s.id ? "selected" : ""}`}
                 onClick={() => setSelectedId(s.id)}
               >
+                {isOnline(s.last_seen) && <span className="online-dot" title="Online now" />}
                 {s.name}
                 {s.email && <span className="sub">{s.email}</span>}
               </button>
