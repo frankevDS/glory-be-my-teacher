@@ -6,12 +6,19 @@ import { getAccessToken } from "../../lib/authClient";
 import Footer from "../../components/Footer";
 import PricingManager from "../../components/PricingManager";
 
+function isOnline(lastSeen) {
+  if (!lastSeen) return false;
+  return Date.now() - new Date(lastSeen).getTime() < 2 * 60 * 1000; // last 2 minutes
+}
+
 const DURATIONS = [
   { label: "No expiry", months: 0 },
   { label: "1 month", months: 1 },
   { label: "3 months", months: 3 },
   { label: "6 months", months: 6 },
   { label: "12 months", months: 12 },
+  { label: "2 years", months: 24 },
+  { label: "3 years", months: 36 },
 ];
 
 function monthsFromNow(months) {
@@ -67,7 +74,12 @@ export default function AdminPage() {
       setError(data.error);
       return;
     }
-    setProfiles(data.profiles);
+    // students.last_seen isn't part of the admin profiles list (that comes
+    // from the profiles table) — merge it in by id so this tab can also
+    // show who's online right now.
+    const { data: studentsData } = await supabase.from("students").select("id, last_seen");
+    const lastSeenMap = new Map((studentsData || []).map((s) => [s.id, s.last_seen]));
+    setProfiles(data.profiles.map((p) => ({ ...p, last_seen: lastSeenMap.get(p.id) || null })));
   }
 
   async function updateProfile(targetUserId, updates) {
@@ -101,6 +113,16 @@ export default function AdminPage() {
       updateProfile(p.id, { expiresAt: monthsFromNow(months) });
     }
   }
+
+  function demote(p) {
+    if (!confirm(`Remove admin rights from ${p.name}? They'll go back to a regular user.`)) return;
+    updateProfile(p.id, { role: "user" });
+  }
+
+  // Whether the currently signed-in admin IS the protected super admin —
+  // derived from their own row in the just-fetched profiles list, so the
+  // client never needs to know the actual protected email.
+  const amISuperAdmin = profiles.some((p) => p.id === profile?.id && p.isSuperAdmin);
 
   const backHome = (
     <a
@@ -196,7 +218,8 @@ export default function AdminPage() {
             {profiles.map((p) => (
               <tr key={p.id}>
                 <td>
-                  {p.name} {p.isSuperAdmin && <span title="Protected super admin">🛡️</span>}
+                  {p.name} {isOnline(p.last_seen) && <span className="online-dot" title="Online now" />}{" "}
+                  {p.isSuperAdmin && <span title="Protected super admin">🛡️</span>}
                 </td>
                 <td>{p.email}</td>
                 <td>{p.status}</td>
@@ -240,6 +263,11 @@ export default function AdminPage() {
                       {p.role !== "admin" && (
                         <button className="chip" onClick={() => updateProfile(p.id, { role: "admin" })}>
                           Make Admin
+                        </button>
+                      )}
+                      {p.role === "admin" && amISuperAdmin && (
+                        <button className="chip" onClick={() => demote(p)}>
+                          Demote to user
                         </button>
                       )}
                     </>
