@@ -28,10 +28,19 @@ export async function POST(req) {
   }
 
   const body = await req.json();
-  const { country, level, track, subject, topic, difficulty } = body;
+  const { country, level, track, subject, topic, difficulty, excludeQuestions } = body;
 
   const syllabusGrounding = retrieveSyllabusExcerpt({ country, subject, topic });
-  const prompt = buildQuizPrompt({ country, level, track, subject, topic, difficulty, syllabusGrounding });
+  const prompt = buildQuizPrompt({
+    country,
+    level,
+    track,
+    subject,
+    topic,
+    difficulty,
+    syllabusGrounding,
+    excludeQuestions,
+  });
 
   const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -41,7 +50,7 @@ export async function POST(req) {
     },
     body: JSON.stringify({
       model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
-      temperature: 0.6,
+      temperature: 0.75,
       response_format: { type: "json_object" },
       messages: [
         {
