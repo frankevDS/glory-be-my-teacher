@@ -18,13 +18,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { extractText } from "./lib/pdfExtractShared.mjs";
+import { getAuthority, isApprovedOfficialSource } from "../lib/curriculumSources.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const [, , pdfPath, country, subject] = process.argv;
+const [, , pdfPath, country, subject, sourceUrl, curriculumVersion] = process.argv;
 
 if (!pdfPath || !country || !subject) {
-  console.error("Usage: npm run ingest -- <path-to-pdf> <country-key> <subject-slug>");
-  console.error("Example: npm run ingest -- ./downloads/math.pdf ghana mathematics");
+  console.error("Usage: npm run ingest -- <path-to-pdf> <country-key> <subject-slug> [official-source-url] [curriculum-version]");
+  console.error("Example: npm run ingest -- ./downloads/math.pdf ghana mathematics https://nacca.gov.gh/... 2025");
   process.exit(1);
 }
 
@@ -41,11 +42,20 @@ async function main() {
     outPath,
     JSON.stringify(
       {
+        schemaVersion: 2,
         country,
         subject,
+        authority: getAuthority(country)?.name || null,
         source: path.basename(pdfPath),
+        sourceUrl: sourceUrl || null,
+        curriculumVersion: curriculumVersion || null,
+        verified: isApprovedOfficialSource(country, sourceUrl),
+        verificationBasis: isApprovedOfficialSource(country, sourceUrl)
+          ? "official-authority-domain-recorded-at-ingestion"
+          : "unverified-until-an-approved-official-source-url-is-recorded",
         ingestedAt: new Date().toISOString(),
         chunkCount: chunks.length,
+        curriculumStructure: summarizeStructure(chunks),
         chunks,
       },
       null,
@@ -63,6 +73,7 @@ async function main() {
 
   const headingCount = debugLines.filter((l) => l.startsWith("### HEADING")).length;
   console.log(`Indexed ${chunks.length} chunks from "${pdfPath}" -> ${outPath}`);
+  console.log(`Verification: ${isApprovedOfficialSource(country, sourceUrl) ? "VERIFIED official authority source" : "NOT VERIFIED (provide the official source URL when ingesting)"}`);
   console.log(`Detected ${headingCount} heading(s). Raw text dump for review -> ${debugPath}`);
   if (headingCount < 5) {
     console.log(
@@ -174,6 +185,25 @@ function chunkText(rawText) {
   flush();
 
   return { chunks, debugLines };
+}
+
+function summarizeStructure(chunks) {
+  const years = new Set();
+  const strands = new Set();
+  const subStrands = new Set();
+  for (const chunk of chunks) {
+    const h = chunk.heading || "";
+    const text = `${h} ${chunk.text || ""}`;
+    for (const m of text.matchAll(/\b(?:YEAR|SHS)\s*(ONE|TWO|THREE|1|2|3)\b/gi)) years.add(m[1].toUpperCase());
+    if (/\bstrand\b/i.test(h)) strands.add(h);
+    if (/sub[- ]strand/i.test(h)) subStrands.add(h);
+  }
+  return {
+    yearsDetected: [...years],
+    strandHeadingsDetected: [...strands],
+    subStrandHeadingsDetected: [...subStrands],
+    extractionQuality: strands.size >= 3 && subStrands.size >= 3 ? "usable" : "review-required",
+  };
 }
 
 function slugify(s) {

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "country": "ghana",
+  "authority": "National Council for Curriculum and Assessment (NaCCA)",
+  "officialIndex": "https://nacca.gov.gh/secondary-education-curriculum/",
+  "resourceHub": "https://curriculumresources.edu.gh/",
+  "documents": [
+    {"subject":"Mathematics","slug":"mathematics","sourceUrl":"https://nacca.gov.gh/wp-content/uploads/2025/04/Mathematics-Curriculum.pdf","status":"verified-online","coverage":"SHS 1-3"},
+    {"subject":"General Science","slug":"general-science","sourceUrl":"https://nacca.gov.gh/wp-content/uploads/2025/04/GENERAL-SCIENCE-Curriculum.pdf","status":"verified-online","coverage":"SHS 1-3"},
+    {"subject":"Biology","slug":"biology","sourceUrl":"https://nacca.gov.gh/wp-content/uploads/2025/04/Biology-Curriculum.pdf","status":"verified-online","coverage":"SHS 1-3"},
+    {"subject":"Physics","slug":"physics","sourceUrl":"https://nacca.gov.gh/wp-content/uploads/2025/04/Physics-Curriculum.pdf","status":"verified-online","coverage":"SHS 1-3"},
+    {"subject":"Economics","slug":"economics","sourceUrl":"https://nacca.gov.gh/wp-content/uploads/2025/04/Economics-Curriculum-Curriculum.pdf","status":"verified-online","coverage":"SHS 1-3"},
+    {"subject":"History","slug":"history","sourceUrl":"https://nacca.gov.gh/wp-content/uploads/2025/04/History-Curriculum.pdf","status":"verified-online","coverage":"SHS 1-3"},
+    {"subject":"Government","slug":"government","sourceUrl":"https://nacca.gov.gh/wp-content/uploads/2025/04/Government-Curriculum.pdf","status":"verified-online","coverage":"SHS 1-3"},
+    {"subject":"Chemistry","slug":"chemistry","sourceUrl":null,"status":"catalogued-pending-local-download","coverage":"SHS 1-3"}
+  ]
+}
