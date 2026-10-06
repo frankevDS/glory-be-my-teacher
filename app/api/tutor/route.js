@@ -1,6 +1,7 @@
 import { buildSystemPrompt } from "../../../lib/prompt";
 import { retrieveSyllabusExcerpt } from "../../../lib/retrieval";
 import { getCallerProfile, isApproved } from "../../../lib/supabaseServer";
+import { requireVerifiedGrounding } from "../../../lib/trust";
 
 // Node runtime (not edge) so we can read the locally-ingested syllabus index files.
 export const runtime = "nodejs";
@@ -31,6 +32,8 @@ export async function POST(req) {
   const { studentName, country, level, track, subject, topic, messages } = body;
 
   const syllabusGrounding = retrieveSyllabusExcerpt({ country, subject, topic });
+  const trustError = requireVerifiedGrounding({ grounding: syllabusGrounding, country, subject });
+  if (trustError) return new Response(trustError, { status: 409 });
   const systemPrompt = buildSystemPrompt({ studentName, country, level, track, subject, syllabusGrounding });
 
   const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {

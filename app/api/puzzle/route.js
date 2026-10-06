@@ -27,10 +27,19 @@ export async function POST(req) {
   }
 
   const body = await req.json();
-  const { country, level, track, subject, topic } = body;
+  const { country, level, track, subject, topic, excludeWords, excludeSentences } = body;
 
   const syllabusGrounding = retrieveSyllabusExcerpt({ country, subject, topic });
-  const prompt = buildPuzzlePrompt({ country, level, track, subject, topic, syllabusGrounding });
+  const prompt = buildPuzzlePrompt({
+    country,
+    level,
+    track,
+    subject,
+    topic,
+    syllabusGrounding,
+    excludeWords,
+    excludeSentences,
+  });
 
   const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",

@@ -1,5 +1,6 @@
 import { listSyllabusTopics } from "../../../lib/retrieval";
 import { buildTopicListPrompt } from "../../../lib/prompt";
+import { isStrictCurriculumMode } from "../../../lib/trust";
 
 export const runtime = "nodejs";
 
@@ -16,7 +17,30 @@ export async function POST(req) {
   // scripts/ingest.mjs) over anything AI-generated.
   const local = listSyllabusTopics(country, subject);
   if (local) {
-    return Response.json({ topics: local.topics, source: "syllabus", sourceDoc: local.source });
+    if (isStrictCurriculumMode() && local.verified !== true) {
+      return Response.json(
+        { error: `The indexed ${country}/${subject} curriculum is not verified as an official source. Topic discovery is disabled in strict curriculum mode until it is verified.` },
+        { status: 409 }
+      );
+    }
+    return Response.json({
+      topics: local.topics,
+      source: "syllabus",
+      sourceDoc: local.source,
+      sourceUrl: local.sourceUrl,
+      curriculumVersion: local.curriculumVersion,
+      authority: local.authority,
+      verified: local.verified,
+    });
+  }
+
+  if (isStrictCurriculumMode()) {
+    return Response.json(
+      {
+        error: `No verified official syllabus has been indexed for ${country}/${subject}. Topic discovery is disabled in strict curriculum mode until the official curriculum is ingested.`,
+      },
+      { status: 409 }
+    );
   }
 
   const apiKey = process.env.GROQ_API_KEY;
@@ -65,5 +89,5 @@ export async function POST(req) {
     return Response.json({ error: "Malformed topic list returned by model." }, { status: 502 });
   }
 
-  return Response.json({ topics: parsed.topics, source: "ai-suggested" });
+  return Response.json({ topics: parsed.topics, source: "ai-suggested", verified: false });
 }

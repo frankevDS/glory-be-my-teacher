@@ -1,6 +1,7 @@
 import { buildQuizPrompt } from "../../../lib/prompt";
 import { retrieveSyllabusExcerpt } from "../../../lib/retrieval";
 import { getCallerProfile, isApproved } from "../../../lib/supabaseServer";
+import { requireVerifiedGrounding, validateGeneratedQuestions } from "../../../lib/trust";
 
 // Node runtime (not edge) so we can read the locally-ingested syllabus index files.
 export const runtime = "nodejs";
@@ -31,6 +32,8 @@ export async function POST(req) {
   const { country, level, track, subject, topic, difficulty, excludeQuestions } = body;
 
   const syllabusGrounding = retrieveSyllabusExcerpt({ country, subject, topic });
+  const trustError = requireVerifiedGrounding({ grounding: syllabusGrounding, country, subject });
+  if (trustError) return Response.json({ error: trustError }, { status: 409 });
   const prompt = buildQuizPrompt({
     country,
     level,
@@ -77,9 +80,8 @@ export async function POST(req) {
     return Response.json({ error: "Could not parse quiz JSON from model output." }, { status: 502 });
   }
 
-  if (!parsed.questions || !Array.isArray(parsed.questions)) {
-    return Response.json({ error: "Malformed quiz shape returned by model." }, { status: 502 });
-  }
+  const validation = validateGeneratedQuestions(parsed.questions, 10);
+  if (!validation.ok) return Response.json({ error: validation.error || "Invalid generated questions." }, { status: 502 });
 
-  return Response.json(parsed);
+  return Response.json({ ...parsed, questionSource: "ai-generated", verifiedPastQuestion: false });
 }
