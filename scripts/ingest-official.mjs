@@ -1,7 +1,9 @@
 #!/usr/bin/env node
-// Download and index official Ghana SHS curriculum PDFs listed in the manifest.
-// Run this in an environment with internet access. The app never invents a
-// curriculum URL: every URL must be explicitly recorded in the manifest.
+// Build-time official curriculum ingestion.
+// Vercel runs `prebuild` before `next build`, so the deployed bundle contains
+// the verified curriculum index. Only URLs explicitly recorded in the manifest
+// are eligible. By default Mathematics is built first; set
+// CURRICULUM_BUILD_SUBJECTS=all (or a comma-separated list) to expand coverage.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,20 +14,41 @@ const manifest = JSON.parse(fs.readFileSync(path.join(root, 'scripts', 'official
 const downloadDir = path.join(root, 'downloads', manifest.country + '-official');
 fs.mkdirSync(downloadDir, { recursive: true });
 
-const pending = manifest.documents.filter((d) => d.sourceUrl && d.status === 'verified-online');
-if (!pending.length) {
-  console.error('No verified-online documents are ready in the manifest.');
-  process.exit(1);
+const requested = (process.env.CURRICULUM_BUILD_SUBJECTS || 'Mathematics')
+  .split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+const all = requested.includes('all');
+const docs = manifest.documents.filter((d) =>
+  d.sourceUrl && d.status === 'verified-online' && (all || requested.includes(d.subject.toLowerCase()))
+);
+
+if (!docs.length) {
+  console.log('No official curriculum documents selected for build-time ingestion.');
+  process.exit(0);
 }
 
-for (const doc of pending) {
+async function download(url, target) {
+  const res = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(120000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const buffer = Buffer.from(await res.arrayBuffer());
+  if (buffer.length < 10000) throw new Error(`Downloaded file is unexpectedly small (${buffer.length} bytes)`);
+  fs.writeFileSync(target, buffer);
+}
+
+for (const doc of docs) {
   const pdfPath = path.join(downloadDir, `${doc.slug}.pdf`);
-  console.log(`Downloading ${doc.subject}...`);
-  const result = spawnSync('curl', ['-L', '--fail', '--silent', '--show-error', '-o', pdfPath, doc.sourceUrl], { stdio: 'inherit' });
-  if (result.status !== 0) {
-    console.error(`Failed to download ${doc.subject}. You can download it manually from: ${doc.sourceUrl}`);
-    continue;
+  try {
+    console.log(`Official curriculum build: ${doc.subject}`);
+    await download(doc.sourceUrl, pdfPath);
+    const ingest = spawnSync(process.execPath, [
+      path.join(root, 'scripts', 'ingest.mjs'), pdfPath, manifest.country,
+      doc.subject, doc.sourceUrl, 'current-NaCCA'
+    ], { stdio: 'inherit' });
+    if (ingest.status !== 0) throw new Error(`ingest exited with ${ingest.status}`);
+  } catch (err) {
+    console.warn(`Official curriculum ingestion skipped for ${doc.subject}: ${err.message}`);
+    console.warn(`Source: ${doc.sourceUrl}`);
+    // Do not make the whole deployment fail because one official source is
+    // temporarily unavailable. Strict mode will correctly keep that subject
+    // disabled if no verified local index was produced.
   }
-  const ingest = spawnSync(process.execPath, [path.join(root, 'scripts', 'ingest.mjs'), pdfPath, manifest.country, doc.subject, doc.sourceUrl, 'current-NaCCA'], { stdio: 'inherit' });
-  if (ingest.status !== 0) console.error(`Ingestion failed for ${doc.subject}.`);
 }
